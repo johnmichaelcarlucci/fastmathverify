@@ -13,8 +13,8 @@ def sympy_expr_eq(gold, pred, float_rounding=6, numeric_precision=15, allow_set_
 mv = types.ModuleType("math_verify")
 for name in F.__all__:
     setattr(mv, name, getattr(F, name))
-parser = types.ModuleType("math_verify.parser")
-for name in ["parse", "LatexExtractionConfig", "ExprExtractionConfig", "StringExtractionConfig"]:
+parser = F.parser  # real module: patching latex2sympy/parse_expr affects F.parse
+for name in ["LatexExtractionConfig", "ExprExtractionConfig", "StringExtractionConfig"]:
     setattr(parser, name, getattr(F, name))
 grader = F.grader  # real module: patching its sympy_expr_eq affects F.verify
 errors = types.ModuleType("math_verify.errors")

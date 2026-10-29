@@ -12,7 +12,7 @@ from typing import Literal, Sequence
 
 from . import _core
 from ._core import Expr
-from . import grader
+from . import grader, parser
 
 def _srepr_to_sympy(srepr: str):
     """Rebuild a SymPy object from the constructor string our printer produces."""
@@ -116,7 +116,40 @@ def parse(
     result is ``[]`` like upstream.
     """
     timeout = float(parsing_timeout) if parsing_timeout else None
+    if parser.latex2sympy is not parser._DEFAULT_LATEX or parser.parse_expr is not parser._DEFAULT_EXPR:
+        return _parse_with_hooks(str(pred), extraction_config, fallback_mode, extraction_mode, timeout)
     return _core.parse(str(pred), _specs(extraction_config), fallback_mode, extraction_mode, timeout)
+
+
+def _parse_with_hooks(pred, extraction_config, fallback_mode, extraction_mode, timeout):
+    """Slow path: user-supplied parser.latex2sympy / parser.parse_expr."""
+    import threading
+
+    items, src = _core.parse_with_source(pred, _specs(extraction_config), fallback_mode, extraction_mode)
+    if not src or src[0] == "string":
+        return items
+    kind, text = src
+    hook = parser.latex2sympy if kind == "latex" else parser.parse_expr
+    if (kind == "latex" and hook is parser._DEFAULT_LATEX) or (kind == "expr" and hook is parser._DEFAULT_EXPR):
+        return items
+    arg = text if kind == "latex" else text.replace("\n", " ").replace("^", "**")
+    box = {}
+
+    def run():
+        try:
+            box["r"] = hook(arg)
+        except BaseException as e:  # noqa: BLE001
+            box["e"] = e
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    th.join(timeout)
+    if th.is_alive():
+        return []  # parsing_timeout exceeded
+    out = [] if "e" in box else [box["r"]]
+    if fallback_mode == "first_match" and text:
+        out.append(text)
+    return out
 
 
 def _coerce(x):

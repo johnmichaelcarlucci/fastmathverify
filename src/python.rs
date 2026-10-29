@@ -260,6 +260,23 @@ fn parse_batch<'py>(
     Ok(out)
 }
 
+/// Like `parse`, also returning (kind, extracted string) of the first regex match.
+#[pyfunction]
+#[pyo3(signature = (pred, targets, fallback_mode, extraction_mode))]
+fn parse_with_source<'py>(
+    py: Python<'py>,
+    pred: &str,
+    targets: &Bound<'py, PyList>,
+    fallback_mode: &str,
+    extraction_mode: &str,
+) -> PyResult<(Bound<'py, PyList>, Option<(String, String)>)> {
+    let ts = targets_from_py(targets)?;
+    let (f, m) = modes(fallback_mode, extraction_mode);
+    let items = crate::extract::parse(pred, &ts, f, m);
+    let src = crate::extract::FIRST_MATCH.with(|x| x.borrow().clone()).map(|(k, s)| (k.to_string(), s));
+    Ok((items_to_py(py, items)?, src))
+}
+
 /// Normalize a LaTeX string (latex2sympy2_extended.normalize_latex).
 #[pyfunction]
 #[pyo3(signature = (text, basic_latex=true, units=false, malformed_operators=false, nits=false, boxed="all", equations=false))]
@@ -303,6 +320,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_batch, m)?)?;
     m.add_function(wrap_pyfunction!(parse_batch, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_latex, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_with_source, m)?)?;
     m.add_function(wrap_pyfunction!(latex_to_expr, m)?)?;
     Ok(())
 }

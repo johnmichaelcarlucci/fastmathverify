@@ -587,6 +587,11 @@ fn extract_string(c: &Captures, cfg: &StringConfig) -> (Option<Item>, String) {
     (Some(Item::Str(parsed)), s)
 }
 
+thread_local! {
+    /// (target kind, extracted string) of the first regex match in the last extraction.
+    pub static FIRST_MATCH: std::cell::RefCell<Option<(&'static str, String)>> = const { std::cell::RefCell::new(None) };
+}
+
 pub fn extract_target_from_pred(
     pred: &str,
     targets: &[Target],
@@ -595,6 +600,7 @@ pub fn extract_target_from_pred(
 ) -> Vec<Item> {
     let mut extracted = Vec::new();
     let mut fallbacks: Vec<String> = Vec::new();
+    FIRST_MATCH.with(|f| *f.borrow_mut() = None);
 
     let regs: Vec<(Arc<Pats>, &Target)> = targets.iter().map(|t| (regexes_for(t), t)).collect();
     let mut all: Vec<(&Pat, &Target, i32)> = Vec::new();
@@ -635,6 +641,14 @@ pub fn extract_target_from_pred(
                 Target::Expr(_) => extract_expr(r, c),
                 Target::Str(cfg) => extract_string(c, cfg),
             };
+            if !match_found {
+                let kind = match t {
+                    Target::Latex(_) => "latex",
+                    Target::Expr(_) => "expr",
+                    Target::Str(_) => "string",
+                };
+                FIRST_MATCH.with(|f| *f.borrow_mut() = Some((kind, fb.clone())));
+            }
             match_found = true;
             if !fb.is_empty() {
                 fallbacks.push(fb);
