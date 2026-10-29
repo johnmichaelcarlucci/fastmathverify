@@ -1,0 +1,10 @@
+/target
+/.venv
+/ref
+/tools/*.jar
+/data/*.txt
+/data/*.json
+/data/*.jsonl
+!/data/.gitkeep
+__pycache__/
+*.so
