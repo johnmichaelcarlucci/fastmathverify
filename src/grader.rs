@@ -668,6 +668,9 @@ fn compare_relational(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
     // single-symbol solutions are plain values (upstream's `.items()` raises);
     // only multi-symbol linear equations yield comparable dict solutions.
     if *gop == RelOp::Eq && *pop == RelOp::Eq {
+        if same_zero_set(gl, gr, pl, pr) {
+            return Ok(true);
+        }
         match (crate::solve::solve_eq(gl, gr), crate::solve::solve_eq(pl, pr)) {
             (Some(gs), Some(ps)) => {
                 if gs.len() != ps.len() {
@@ -692,6 +695,37 @@ fn compare_relational(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
         }
     }
     Ok(false)
+}
+
+/// `gl = gr` and `pl = pr` have the same solutions: cleared numerators are
+/// proportional by a nonzero constant, and a denominator only one side has
+/// (a symbol s) leaves a nonzero constant at s = 0, so it removes no root.
+fn same_zero_set(gl: &Expr, gr: &Expr, pl: &Expr, pr: &Expr) -> bool {
+    let num = |l: &Expr, r: &Expr| {
+        crate::poly::cleared_numerator(&Expr::Add(vec![l.clone(), Expr::Mul(vec![int(-1), r.clone()])]))
+    };
+    let (Some((p, pb)), Some((q, qb))) = (num(gl, gr), num(pl, pr)) else {
+        return false;
+    };
+    if p.is_zero() || q.is_zero() || p.terms.len() != q.terms.len() {
+        return false;
+    }
+    let (m0, c0) = p.terms.iter().next().unwrap();
+    let Some(d0) = q.terms.get(m0) else {
+        return false;
+    };
+    let k = d0 / c0;
+    if !p.terms.iter().all(|(m, c)| q.terms.get(m).is_some_and(|d| *d == c * &k)) {
+        return false;
+    }
+    let lone = |b: &Expr, other: &[Expr]| !other.iter().any(|x| struct_eq(x, b));
+    pb.iter().filter(|b| lone(b, &qb)).chain(qb.iter().filter(|b| lone(b, &pb))).all(|b| {
+        let Expr::Sym(s) = b else {
+            return false;
+        };
+        p.terms.iter().all(|(m, c)| if m.is_empty() { !c.is_zero() } else { m.iter().any(|(a, _)| a == s) })
+            && p.terms.keys().any(|m| m.is_empty())
+    })
 }
 
 pub fn expr_eq(gold: &Expr, pred: &Expr, o: &VerifyOpts, allow_set_rel: bool, strict: bool) -> R {

@@ -67,6 +67,24 @@ fn pathological_inputs_finish_quickly() {
 }
 
 #[test]
+fn equivalent_equations() {
+    for (g, p) in [
+        ("$x y = 4$", "$y = \\frac{4}{x}$"),
+        ("$x^2 + y^2 = 1$", "$y^2 = 1 - x^2$"),
+        ("$2x + 4y = 6$", "$x + 2y = 3$"),
+    ] {
+        assert!(v(g, p), "{g} vs {p}");
+    }
+    for (g, p) in [
+        ("$x y = 4$", "$y = 4x$"),
+        ("$x^2 + y^2 = 1$", "$x^2 + y^2 = 2$"),
+        ("$x + y = 1$", "$\\frac{x + y - 1}{x} = 0$"),
+    ] {
+        assert!(!v(g, p), "{g} vs {p}");
+    }
+}
+
+#[test]
 fn threads_agree_with_serial() {
     let cases: Vec<(String, String)> = (1..200)
         .map(|i| (format!("$\\frac{{{i}}}{{7}}$"), format!("\\boxed{{{}}}", i as f64 / 7.0)))
