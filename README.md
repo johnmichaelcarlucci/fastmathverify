@@ -23,7 +23,9 @@ mv.verify_batch(gold_texts, completions)   # -> list[bool]
 - LaTeX parsing: fractions, roots, powers, trig and log functions, sets, intervals, tuples, matrices, equations.
 - Equivalence checking: exact rational arithmetic, numeric identity tests, set and interval comparison, equation solving.
 - Timeouts that work in any thread; no signals, no subprocesses.
-- Batch grading across all cores with the GIL released.
+- Batch grading across all cores with the GIL released; each distinct gold is parsed once.
+- `explain()` says why a pair failed: no answer found, mismatch or timeout.
+- `exact=True` grading: no float rounding, and `9%` is not `9`.
 - No SymPy or ANTLR runtime needed at run time.
 
 ## Install
@@ -111,8 +113,19 @@ Upstream's config objects are accepted too, so `parse(text, [math_verify.LatexEx
 
 Additions:
 
-- `verify_batch(golds, preds, ..., threads=None) -> list[bool]` and `parse_batch(texts, ...)`:
-  parallel, GIL released.
+- `verify_batch(golds, preds, ..., threads=None, exact=False, parsing_timeout=5, timeout_seconds=5) -> list[bool]`
+  and `parse_batch(texts, ...)`: parallel, GIL released. Repeated golds are parsed once.
+- `explain(gold, pred, ...) -> dict`: `{"correct", "reason", "gold", "pred"}`, where `reason` is
+  `"match"`, `"mismatch"`, `"no answer in gold"`, `"no answer in prediction"` or `"timeout"`, and
+  `gold`/`pred` are the extracted answers.
+
+  ```python
+  >>> mv.explain("$\\frac{1}{2}$", "so the answer is 0.6")
+  {'correct': False, 'gold': ['1/2'], 'pred': ['0.6'], 'reason': 'mismatch'}
+  ```
+- `exact=True` on `verify` and `verify_batch`: numbers compare by exact value. No rounding to
+  `float_rounding` places (`0.3333333` is not `1/3`), and a percentage equals its value / 100
+  (`9%` matches `0.09`, not `9`). Symbolic answers are graded the same in both modes.
 - `parse()` returns `fastmathverify.Expr` objects (plus the fallback string, like upstream).
   `str(expr)` prints SymPy-style; `expr.to_sympy()` returns the equivalent SymPy object, and
   `expr == sympy_obj` / `verify(sympy_obj, ...)` work when SymPy is installed.

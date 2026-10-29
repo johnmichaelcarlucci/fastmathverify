@@ -26,6 +26,7 @@ __all__ = [
     "parse",
     "verify",
     "verify_batch",
+    "explain",
     "parse_batch",
     "math_metric",
     "Expr",
@@ -181,16 +182,56 @@ def verify(
     allow_set_relation_comp: bool = False,
     timeout_seconds: int | None = 5,
     raise_on_error: bool = False,
+    exact: bool = False,
 ) -> bool:
-    """Return True if any parsed ``target`` matches any parsed ``gold`` (math_verify.verify)."""
+    """Return True if any parsed ``target`` matches any parsed ``gold``.
+
+    ``exact=True`` compares numbers by exact value: no rounding to ``float_rounding``
+    places, and ``9%`` equals ``0.09`` but not ``9``.
+    """
     timeout = float(timeout_seconds) if timeout_seconds else None
     if grader.sympy_expr_eq is not grader._DEFAULT:
         return _verify_with_hook(_coerce(gold), _coerce(target), float_rounding, numeric_precision, strict,
                                  allow_set_relation_comp, timeout, raise_on_error)
     return _core.verify_items(
         _coerce(gold), _coerce(target), int(float_rounding), int(numeric_precision), bool(strict),
-        bool(allow_set_relation_comp), timeout,
+        bool(allow_set_relation_comp), timeout, bool(exact),
     )
+
+
+def explain(
+    gold: str,
+    pred: str,
+    gold_extraction_config: Sequence[ExtractionTarget] = _DEFAULT_TARGETS,
+    pred_extraction_config: Sequence[ExtractionTarget] = _DEFAULT_TARGETS,
+    float_rounding: int = 6,
+    numeric_precision: int = 15,
+    strict: bool = True,
+    allow_set_relation_comp: bool = False,
+    timeout_seconds: int | None = 5,
+    exact: bool = False,
+) -> dict:
+    """Grade one (gold, prediction) text pair and say why.
+
+    Returns ``{"correct", "reason", "gold", "pred"}``. ``gold`` and ``pred`` are the
+    extracted answers as strings. ``reason`` is one of ``"match"``, ``"mismatch"``,
+    ``"no answer in gold"``, ``"no answer in prediction"`` or ``"timeout"``.
+    """
+    g = parse(str(gold), gold_extraction_config)
+    p = parse(str(pred), pred_extraction_config)
+    shown = lambda items: [str(x) for x in items if not isinstance(x, str)] or [x for x in items if isinstance(x, str)]
+    out = {"correct": False, "gold": shown(g), "pred": shown(p)}
+    if not g:
+        return {**out, "reason": "no answer in gold"}
+    if not p:
+        return {**out, "reason": "no answer in prediction"}
+    timeout = float(timeout_seconds) if timeout_seconds else None
+    ok, timed_out = _core.verify_items_detail(
+        g, p, int(float_rounding), int(numeric_precision), bool(strict), bool(allow_set_relation_comp),
+        timeout, bool(exact),
+    )
+    reason = "match" if ok else "timeout" if timed_out else "mismatch"
+    return {**out, "correct": ok, "reason": reason}
 
 
 def _verify_with_hook(gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp,
@@ -241,12 +282,21 @@ def verify_batch(
     strict: bool = True,
     allow_set_relation_comp: bool = False,
     threads: int | None = None,
+    exact: bool = False,
+    parsing_timeout: int | None = 5,
+    timeout_seconds: int | None = 5,
 ) -> list[bool]:
-    """``[verify(parse(g), parse(p)) for g, p in zip(golds, preds)]`` on all cores, GIL released."""
+    """``[verify(parse(g), parse(p)) for g, p in zip(golds, preds)]`` on all cores, GIL released.
+
+    Each distinct gold text is parsed once, so repeated golds (several completions
+    per prompt) cost nothing extra.
+    """
     return _core.verify_batch(
         list(map(str, golds)), list(map(str, preds)), _specs(gold_extraction_config),
         _specs(pred_extraction_config), int(float_rounding), int(numeric_precision), bool(strict),
-        bool(allow_set_relation_comp), threads,
+        bool(allow_set_relation_comp), threads, bool(exact),
+        float(parsing_timeout) if parsing_timeout else None,
+        float(timeout_seconds) if timeout_seconds else None,
     )
 
 

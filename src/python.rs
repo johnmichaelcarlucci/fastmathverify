@@ -8,7 +8,7 @@ use crate::expr::Expr as RExpr;
 use crate::extract::{
     ExprConfig, ExtractionMode, FallbackMode, Item, LatexConfig, StringConfig, Target,
 };
-use crate::grader::{verify, VerifyOpts};
+use crate::grader::VerifyOpts;
 use crate::normalize::{BoxedMode, NormalizationConfig};
 
 /// A parsed mathematical expression (opaque, Rust-backed).
@@ -160,7 +160,7 @@ fn parse<'py>(
 }
 
 #[pyfunction]
-#[pyo3(signature = (gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp, timeout=None))]
+#[pyo3(signature = (gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp, timeout=None, exact=false))]
 #[allow(clippy::too_many_arguments)]
 fn verify_items(
     py: Python<'_>,
@@ -171,11 +171,30 @@ fn verify_items(
     strict: bool,
     allow_set_relation_comp: bool,
     timeout: Option<f64>,
+    exact: bool,
 ) -> PyResult<bool> {
+    Ok(verify_items_detail(py, gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp, timeout, exact)?.0)
+}
+
+/// `verify_items` that also reports whether any comparison timed out.
+#[pyfunction]
+#[pyo3(signature = (gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp, timeout=None, exact=false))]
+#[allow(clippy::too_many_arguments)]
+fn verify_items_detail(
+    py: Python<'_>,
+    gold: &Bound<'_, PyAny>,
+    target: &Bound<'_, PyAny>,
+    float_rounding: u32,
+    numeric_precision: u32,
+    strict: bool,
+    allow_set_relation_comp: bool,
+    timeout: Option<f64>,
+    exact: bool,
+) -> PyResult<(bool, bool)> {
     let g = items_from_py(gold)?;
     let t = items_from_py(target)?;
-    let o = VerifyOpts { float_rounding, numeric_precision, strict, allow_set_relation_comp };
-    Ok(py.detach(move || crate::grader::verify_with_timeout(&g, &t, &o, timeout)))
+    let o = VerifyOpts { float_rounding, numeric_precision, strict, allow_set_relation_comp, exact };
+    Ok(py.detach(move || crate::grader::verify_detail(&g, &t, &o, timeout)))
 }
 
 fn run_parallel<T: Send, R: Send>(inputs: Vec<T>, threads: usize, f: impl Fn(T) -> R + Sync) -> Vec<R> {
@@ -207,7 +226,7 @@ fn default_threads() -> usize {
 
 /// Parse and verify many (gold, prediction) text pairs in parallel without the GIL.
 #[pyfunction]
-#[pyo3(signature = (golds, preds, gold_targets, pred_targets, float_rounding=6, numeric_precision=15, strict=true, allow_set_relation_comp=false, threads=None))]
+#[pyo3(signature = (golds, preds, gold_targets, pred_targets, float_rounding=6, numeric_precision=15, strict=true, allow_set_relation_comp=false, threads=None, exact=false, parsing_timeout=Some(5.0), timeout=Some(5.0)))]
 #[allow(clippy::too_many_arguments)]
 fn verify_batch(
     py: Python<'_>,
@@ -220,20 +239,38 @@ fn verify_batch(
     strict: bool,
     allow_set_relation_comp: bool,
     threads: Option<usize>,
+    exact: bool,
+    parsing_timeout: Option<f64>,
+    timeout: Option<f64>,
 ) -> PyResult<Vec<bool>> {
     if golds.len() != preds.len() {
         return Err(PyValueError::new_err("golds and preds must have the same length"));
     }
     let gt = targets_from_py(gold_targets)?;
     let pt = targets_from_py(pred_targets)?;
-    let o = VerifyOpts { float_rounding, numeric_precision, strict, allow_set_relation_comp };
+    let o = VerifyOpts { float_rounding, numeric_precision, strict, allow_set_relation_comp, exact };
     let threads = threads.unwrap_or_else(default_threads);
-    let pairs: Vec<(String, String)> = golds.into_iter().zip(preds).collect();
+    let parse = |text: &str, ts: &[Target]| {
+        crate::extract::parse_with_timeout(text, ts, FallbackMode::FirstMatch, ExtractionMode::AnyMatch, parsing_timeout)
+    };
     Ok(py.detach(move || {
+        // RL batches repeat each gold once per sampled completion: parse every distinct gold once.
+        let mut index = std::collections::HashMap::new();
+        let mut unique = Vec::new();
+        let gold_ids: Vec<usize> = golds
+            .into_iter()
+            .map(|g| {
+                *index.entry(g.clone()).or_insert_with(|| {
+                    unique.push(g);
+                    unique.len() - 1
+                })
+            })
+            .collect();
+        let parsed_golds = run_parallel(unique, threads, |g| parse(&g, &gt));
+        let pairs: Vec<(usize, String)> = gold_ids.into_iter().zip(preds).collect();
         run_parallel(pairs, threads, |(g, p)| {
-            let gi = crate::extract::parse_with_timeout(&g, &gt, FallbackMode::FirstMatch, ExtractionMode::AnyMatch, Some(5.0));
-            let pi = crate::extract::parse_with_timeout(&p, &pt, FallbackMode::FirstMatch, ExtractionMode::AnyMatch, Some(5.0));
-            verify(&gi, &pi, &o)
+            let pi = parse(&p, &pt);
+            crate::grader::verify_with_timeout(&parsed_golds[g], &pi, &o, timeout)
         })
     }))
 }
@@ -317,6 +354,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyExpr>()?;
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_function(wrap_pyfunction!(verify_items, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_items_detail, m)?)?;
     m.add_function(wrap_pyfunction!(verify_batch, m)?)?;
     m.add_function(wrap_pyfunction!(parse_batch, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_latex, m)?)?;

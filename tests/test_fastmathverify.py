@@ -128,3 +128,22 @@ def test_math_metric():
                            pred_extraction_target=(F.ExprExtractionConfig(), F.LatexExtractionConfig()))
     score, _ = metric(["$\\frac{1}{2}$"], ["The answer is 0.5"])
     assert score == 1.0
+
+
+def test_explain():
+    r = F.explain("$\frac{1}{2}$", "so \boxed{0.5}")
+    assert r["correct"] and r["reason"] == "match" and r["gold"] == ["1/2"]
+    assert F.explain("$2$", "\boxed{3}")["reason"] == "mismatch"
+    assert F.explain("$2$", "no idea")["reason"] == "no answer in prediction"
+
+
+def test_exact_mode():
+    g, p = F.parse("$9\%$"), F.parse("\boxed{9}")
+    assert F.verify(g, p) and not F.verify(g, p, exact=True)
+    assert F.verify_batch(["$9\%$"], ["\boxed{0.09}"], exact=True) == [True]
+
+
+def test_verify_batch_repeated_golds():
+    golds = ["$\frac{1}{2}$"] * 4 + ["$3$"] * 4
+    preds = ["\boxed{0.5}", "\boxed{1}", "\boxed{1/2}", "x"] + ["\boxed{3}", "\boxed{4}", "3", "\boxed{3.0}"]
+    assert F.verify_batch(golds, preds) == [F.verify(F.parse(g), F.parse(p)) for g, p in zip(golds, preds)]

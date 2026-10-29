@@ -19,11 +19,14 @@ pub struct VerifyOpts {
     pub numeric_precision: u32,
     pub strict: bool,
     pub allow_set_relation_comp: bool,
+    /// Compare numbers by exact value: no rounding to `float_rounding` places,
+    /// and a percentage equals its value / 100 only (`9%` is not `9`).
+    pub exact: bool,
 }
 
 impl Default for VerifyOpts {
     fn default() -> Self {
-        VerifyOpts { float_rounding: 6, numeric_precision: 15, strict: true, allow_set_relation_comp: false }
+        VerifyOpts { float_rounding: 6, numeric_precision: 15, strict: true, allow_set_relation_comp: false, exact: false }
     }
 }
 
@@ -258,6 +261,16 @@ fn numeric_eq(a: &Expr, b: &Expr, opts: &VerifyOpts) -> bool {
             }
         }
         return false;
+    }
+    if opts.exact && (atomic_or_pct(a, Kind::Number) || atomic_or_pct(b, Kind::Number)) {
+        let val = |e: &Expr| match doit_pct(e) {
+            Expr::Num(n) => Some(n.to_rat()),
+            x => exact(&x),
+        };
+        return match (val(a), val(b)) {
+            (Some(x), Some(y)) => x == y,
+            _ => semantic_eq(&doit_pct(a), &doit_pct(b)),
+        };
     }
     if atomic_or_pct(a, Kind::Number) || atomic_or_pct(b, Kind::Number) {
         if atomic_or_pct(a, Kind::Float) || atomic_or_pct(b, Kind::Float) {
@@ -495,9 +508,30 @@ fn deep_compare(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
     if g.len() != p.len() {
         return Err(());
     }
+    let mut straight = Ok(true);
     for (x, y) in g.iter().zip(&p) {
-        if !expr_eq(x, y, o, false, true)? {
-            return Ok(false);
+        match expr_eq(x, y, o, false, true) {
+            Ok(true) => {}
+            r => {
+                straight = r;
+                break;
+            }
+        }
+    }
+    if matches!(straight, Ok(true)) || !matches!((gold, pred), (Expr::FiniteSet { .. }, Expr::FiniteSet { .. })) {
+        return straight;
+    }
+    // Sets are unordered: the value sort above can pair symbolic elements wrongly,
+    // so match each gold element to any unused equal prediction element.
+    if g.len() > 64 {
+        return straight;
+    }
+    let mut used = vec![false; p.len()];
+    for x in &g {
+        let hit = (0..p.len()).find(|&j| !used[j] && matches!(expr_eq(x, &p[j], o, false, true), Ok(true)));
+        match hit {
+            Some(j) => used[j] = true,
+            None => return straight,
         }
     }
     Ok(true)
@@ -692,12 +726,22 @@ pub fn verify(gold: &[Item], target: &[Item], o: &VerifyOpts) -> bool {
 /// Upstream semantics: each (gold, target) comparison gets its own timeout and
 /// counts as False when it expires.
 pub fn verify_with_timeout(gold: &[Item], target: &[Item], o: &VerifyOpts, timeout: Option<f64>) -> bool {
-    gold.iter().any(|g| {
-        target.iter().any(|t| {
+    verify_detail(gold, target, o, timeout).0
+}
+
+/// `(matched, any comparison timed out)`.
+pub fn verify_detail(gold: &[Item], target: &[Item], o: &VerifyOpts, timeout: Option<f64>) -> (bool, bool) {
+    let mut timed_out = false;
+    for g in gold {
+        for t in target {
             let (r, hit) = crate::deadline::run(timeout, || compare_items(g, t, o));
-            r && !hit
-        })
-    })
+            if r && !hit {
+                return (true, timed_out);
+            }
+            timed_out |= hit;
+        }
+    }
+    (false, timed_out)
 }
 
 #[allow(dead_code)]
