@@ -13,6 +13,7 @@ use antlr4rust::token::{Token, TOKEN_EOF};
 use antlr4rust::token_factory::TokenFactory;
 use antlr4rust::TokenSource;
 use antlr4rust::Parser;
+use antlr4rust::prediction_mode::PredictionMode;
 use antlr4rust::tree::{ParseTree, Tree};
 #[allow(unused_imports)]
 use antlr4rust::interval_set;
@@ -96,16 +97,28 @@ fn lex_all(data: &[u32]) -> Result<Vec<Tok>, String> {
 
 /// Parse `latex` with the `math` start rule. Any lexer or parser error is a failure,
 /// matching latex2sympy2_extended, whose error listener raises on the first error.
+///
+/// Two-stage parsing: fast SLL prediction first, full LL only when SLL reports a
+/// syntax error (SLL success implies the same tree as LL for this corpus; verified
+/// against Python ANTLR in harness/py_tree_dump.py).
 pub fn parse_math(latex: &str) -> Result<ParseOutput, String> {
     let chars: Vec<char> = latex.chars().collect();
     let data: Vec<u32> = chars.iter().map(|c| *c as u32).collect();
     let tokens = lex_all(&data)?;
+    let root = match parse_with(&data, &tokens, PredictionMode::SLL) {
+        Ok(r) => r,
+        Err(_) => parse_with(&data, &tokens, PredictionMode::LL)?,
+    };
+    Ok(ParseOutput { root, tokens, chars })
+}
 
+fn parse_with(data: &[u32], tokens: &[Tok], mode: PredictionMode) -> Result<RuleNode, String> {
     let flag = Flag(Rc::new(Cell::new(false)));
-    let mut lexer = PSLexer::new(InputStream::new(&data[..]));
+    let mut lexer = PSLexer::new(InputStream::new(data));
     lexer.remove_error_listeners();
     let ts = CommonTokenStream::new(lexer);
     let mut parser = PSParser::new(ts);
+    parser.get_interpreter().set_prediction_mode(mode);
     parser.remove_error_listeners();
     parser.add_error_listener(Box::new(flag.clone()));
     let math = parser.math().map_err(|e| format!("{e:?}"))?;
@@ -113,10 +126,10 @@ pub fn parse_math(latex: &str) -> Result<ParseOutput, String> {
         return Err("syntax error".into());
     }
     let mut next = 0usize;
-    let root = convert(&*math as &dyn crate::gen::psparser::PSParserContext, &tokens, &mut next)?
-        .ok_or("empty tree")?;
-    match root {
-        Node::Rule(r) => Ok(ParseOutput { root: r, tokens, chars }),
+    match convert(&*math as &dyn crate::gen::psparser::PSParserContext, tokens, &mut next)?
+        .ok_or("empty tree")?
+    {
+        Node::Rule(r) => Ok(r),
         Node::Leaf(_) => Err("unexpected leaf root".into()),
     }
 }
