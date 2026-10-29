@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Rust unit tests
+        run: cargo test --release
+      - name: Build and install
+        run: pip install ".[test]"
+      - name: fastmathverify tests
+        run: pytest -q tests
+
+  upstream:
+    name: upstream Math-Verify test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pip install ".[test]" math-verify
+      - name: Fetch upstream tests (pinned)
+        run: |
+          git clone -q https://github.com/huggingface/Math-Verify ref/upstream
+          git -C ref/upstream checkout -q ba3d3aa
+      - name: Run upstream suite against fastmathverify
+        run: ./harness/run_upstream_tests.sh

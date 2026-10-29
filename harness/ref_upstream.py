@@ -9,6 +9,12 @@ def init():
     global parse, verify
     from math_verify import parse, verify
 
+def sstr(x):
+    try:
+        return str(x)
+    except ValueError:  # integers over Python's 4300-digit str() limit
+        return "<unprintable>"
+
 def run(line):
     d = json.loads(line)
     t0 = time.perf_counter()
@@ -17,8 +23,8 @@ def run(line):
     t1 = time.perf_counter()
     ok = verify(g, p)
     t2 = time.perf_counter()
-    return json.dumps({"id": d["id"], "verify": bool(ok), "gold_parsed": [str(x) for x in g],
-                       "pred_parsed": [str(x) for x in p], "t_parse": t1 - t0, "t_verify": t2 - t1})
+    return json.dumps({"id": d["id"], "verify": bool(ok), "gold_parsed": [sstr(x) for x in g],
+                       "pred_parsed": [sstr(x) for x in p], "t_parse": t1 - t0, "t_verify": t2 - t1})
 
 if __name__ == "__main__":
     src, dst, procs = sys.argv[1], sys.argv[2], int(sys.argv[3])
