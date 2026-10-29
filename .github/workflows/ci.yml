@@ -60,4 +60,4 @@ jobs:
       - run: python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.tar.gz
       - name: Smoke test
         working-directory: /tmp
-        run: /tmp/v/bin/python -c "import fastmathverify as F; assert F.verify(F.parse('\$\\frac12\$'), F.parse('\\boxed{0.5}'))"
+        run: /tmp/v/bin/python -c "import fastmathverify as F; assert F.verify(F.parse(r'\$\\frac12\$'), F.parse(r'\\boxed{0.5}'))"
