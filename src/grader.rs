@@ -90,7 +90,15 @@ fn multiset_eq(x: &[Expr], y: &[Expr]) -> bool {
 
 // ---------------- semantic equality (replaces simplify(a - b) == 0) ----------------
 
+fn finite(z: Complex64) -> bool {
+    z.re.is_finite() && z.im.is_finite()
+}
+
 fn close(a: Complex64, b: Complex64) -> bool {
+    // f64 overflow gives inf, and inf <= 1e-10 * inf would accept any two huge values
+    if !finite(a) || !finite(b) {
+        return false;
+    }
     let scale = a.norm().max(b.norm());
     let d = (a - b).norm();
     d <= 1e-10 * scale || d <= 1e-14
@@ -115,7 +123,7 @@ pub fn semantic_eq(a: &Expr, b: &Expr) -> bool {
     syms.dedup();
     if syms.is_empty() {
         return match (numeric(a, &Env::new()), numeric(b, &Env::new())) {
-            (Some(x), Some(y)) => close(x, y),
+            (Some(x), Some(y)) if finite(x) || finite(y) => close(x, y),
             _ => struct_eq(a, b),
         };
     }
@@ -135,6 +143,7 @@ pub fn semantic_eq(a: &Expr, b: &Expr) -> bool {
             env.insert(s.clone(), v);
         }
         match (numeric(a, &env), numeric(b, &env)) {
+            (Some(x), Some(y)) if !finite(x) && !finite(y) => {} // both overflow: no information
             (Some(x), Some(y)) => {
                 if !close(x, y) {
                     return false;
@@ -273,7 +282,7 @@ fn numeric_eq(a: &Expr, b: &Expr, opts: &VerifyOpts) -> bool {
         };
     }
     match (numeric(a, &Env::new()), numeric(b, &Env::new())) {
-        (Some(x), Some(y)) => {
+        (Some(x), Some(y)) if finite(x) && finite(y) => {
             // (a - b).evalf(chop=True) == 0: zero only up to working precision, relative
             let tol = 10f64.powi(-(opts.numeric_precision as i32 - 2)).max(1e-13);
             let d = (x - y).norm();
@@ -296,7 +305,19 @@ fn doit_eq(a: &Expr, b: &Expr) -> bool {
         }
         _ => {}
     }
-    if let (Some(x), Some(y)) = (exact(&a), exact(&b)) {
+    // doit() evaluates b*0 -> 0 (sympy's Mul drops to zero when a factor is exactly zero)
+    let zero_mul = |e: &Expr| -> Option<Rat> {
+        match e {
+            Expr::Mul(v)
+                if v.iter().any(|x| exact(x).is_some_and(|r| r.is_zero()))
+                    && v.iter().all(|x| !matches!(x, Expr::Infinity | Expr::NegInfinity | Expr::NaN | Expr::ComplexInfinity)) =>
+            {
+                Some(Rat::zero())
+            }
+            _ => exact(e),
+        }
+    };
+    if let (Some(x), Some(y)) = (zero_mul(&a), zero_mul(&b)) {
         return x == y;
     }
     false
@@ -505,7 +526,7 @@ fn compare_sets(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
             }
         } else if let (Expr::FiniteSet { args: x, .. }, Expr::FiniteSet { args: y, .. }) = (&a, &b) {
             // symbolic finite sets: each element provably contained in the other
-            let contains = |s: &[Expr], e: &Expr| s.iter().any(|t| struct_eq(t, e));
+            let contains = |s: &[Expr], e: &Expr| s.iter().any(|t| struct_eq(t, e) || doit_eq(t, e));
             if x.iter().all(|e| contains(y, e)) && y.iter().all(|e| contains(x, e)) {
                 return Ok(true);
             }
