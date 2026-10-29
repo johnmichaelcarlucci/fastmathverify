@@ -66,12 +66,12 @@ Target: the same answer as upstream on every input.
 
 | check | result |
 |---|---|
-| `verify()` agreement with upstream on 24,506 OpenR1-Math-220k pairs (development set) | 99.914% (24,485) |
+| `verify()` agreement with upstream on 24,506 OpenR1-Math-220k pairs (development set) | 99.906% (24,483) |
 | `verify()` agreement on 41,437 held-out pairs never used during development (below) | 99.961% (41,421) |
 | extracted answer string identical to upstream (both sets, 65,943 pairs) | 65,943 / 65,943 |
 | LaTeX parse trees identical to Python ANTLR (2,639 real parser inputs) | 2,639 / 2,639 |
 | upstream's own test suite, run unmodified against fastmathverify | 291 / 291 |
-| fastmathverify's own tests: Python (`tests/*.py`) and Rust (`cargo test`) | 26 / 26 and 7 / 7 |
+| fastmathverify's own tests: Python (`tests/*.py`) and Rust (`cargo test`) | 30 / 30 and 11 / 11 |
 | regression corpus: 2,701 pairs with recorded upstream verdicts, checked in CI | 2,701 / 2,701 |
 | mutation fuzzing (`src/bin/fuzz.rs`): 860,000 mangled inputs | 0 panics; slowest pair 0.6 s |
 
@@ -94,12 +94,13 @@ functions to inject delays and errors, so fastmathverify exposes the same hook p
 and `verify`/`parse` route through your function, with `timeout_seconds`/`parsing_timeout`
 enforced in a worker thread (no signals) and `raise_on_error` honoured.
 
-Disagreements (21 of 24,506 and 16 of 41,437): 16 are cases where upstream returns
-`False` but the answers are mathematically equal and SymPy's `simplify` can't prove it, for
-example `cos(2π/7) + cos(4π/7) + cos(6π/7) = -1/2`, tan half-angle forms and `sqrt`/`log`
-rewrites. fastmathverify uses randomized numeric identity testing instead of `simplify`, so
-it accepts those. The rest are structural edge cases (nested integral limits, sets of sets
-vs. sets of tuples). Full list: [DIFFERENCES.md](DIFFERENCES.md).
+Disagreements (23 of 24,506 and 16 of 41,437): 36 of the 39 are correct answers upstream
+rejects. Some are identities SymPy's `simplify` can't prove, for example
+`cos(2π/7) + cos(4π/7) + cos(6π/7) = -1/2`, tan half-angle forms and `sqrt`/`log` rewrites;
+fastmathverify uses randomized numeric identity testing instead. Others are sets of points
+listed in a different order, which fastmathverify matches element by element. One is an
+upstream false positive (above). The remaining two are structural edge cases (nested integral
+limits, chained assignments inside sets). Full list: [DIFFERENCES.md](DIFFERENCES.md).
 
 ## API
 
