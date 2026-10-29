@@ -101,15 +101,15 @@ fn regression_corpus_matches_upstream() {
 fn exact_mode() {
     let ex = VerifyOpts { exact: true, ..VerifyOpts::default() };
     let e = |g: &str, p: &str| grader::verify(&parse_default(g), &parse_default(p), &ex);
-    assert!(v("$9\%$", "$\boxed{9}$") && !e("$9\%$", "$\boxed{9}$"));
-    assert!(e("$9\%$", "$\boxed{0.09}$"));
-    assert!(v("$\frac{1}{3}$", "$\boxed{0.3333333}$") && !e("$\frac{1}{3}$", "$\boxed{0.3333333}$"));
-    assert!(e("$\frac{1}{2}$", "$\boxed{0.5}$"));
-    assert!(e("$2\sqrt{2}$", "$\boxed{\sqrt{8}}$"));
+    assert!(v(r"$9\%$", r"$\boxed{9}$") && !e(r"$9\%$", r"$\boxed{9}$"));
+    assert!(e(r"$9\%$", r"$\boxed{0.09}$"));
+    assert!(v(r"$\frac{1}{3}$", r"$\boxed{0.3333333}$") && !e(r"$\frac{1}{3}$", r"$\boxed{0.3333333}$"));
+    assert!(e(r"$\frac{1}{2}$", r"$\boxed{0.5}$"));
+    assert!(e(r"$2\sqrt{2}$", r"$\boxed{\sqrt{8}}$"));
 }
 
 #[test]
 fn set_elements_match_in_any_order() {
-    assert!(v("$\{n^2+1, \binom{n}{2}\}$", "$\boxed{\{\frac{n(n-1)}{2}, n^2+1\}}$"));
-    assert!(!v("$\{n^2+1, \binom{n}{2}\}$", "$\boxed{\{\frac{n(n+1)}{2}, n^2+1\}}$"));
+    assert!(v(r"$\{n^2+1, \binom{n}{2}\}$", r"$\boxed{\{\frac{n(n-1)}{2}, n^2+1\}}$"));
+    assert!(!v(r"$\{n^2+1, \binom{n}{2}\}$", r"$\boxed{\{\frac{n(n+1)}{2}, n^2+1\}}$"));
 }
