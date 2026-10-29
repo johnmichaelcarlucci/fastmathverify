@@ -38,6 +38,35 @@ both sides agree wherever they're defined.
 | `{{5,12,13}, {6,8,10}, ...}` (x2) | `{(5,12,13), (6,8,10), ...}` | upstream compares set-of-sets with set-of-tuples element-wise |
 | `{α²/2, α(β - α/2)}` | set of `x₁ = x₂ = x₃ = ...` chains | ordering of chained assignments inside sets |
 
+## Held-out set: 16 of 41,437 differ (99.961% agree)
+
+Built after development from data the port never saw (`harness/build_holdout_set.py`).
+Of the 16,000 near-miss and mismatched pairs, exactly one differs, and there fastmathverify
+is right and upstream is wrong (last row below).
+
+Upstream `False`, fastmathverify `True` (10), all mathematically equal answers:
+
+| gold | completion | cause |
+|---|---|---|
+| `sqrt(25.9)` | `sqrt(2590)/10` | Float inside an expression: SymPy's float subtraction leaves a tiny residue |
+| `9/92` | `9/92.0` | same |
+| `-(2x²+8x+9)/((x+2)² sqrt((x²+4x+5)³))` | `.../(x²+4x+5)^{3/2}` | `sqrt(u³) = u^{3/2}` for `u > 0`; `simplify` can't use that |
+| `2n + (1-x^{2n})(x^{2n+2}+1)/((1-x²)x^{2n})` | `(x^{2n+2} - x^{-2n})/(x²-1) + 2n - 1` | rational-function identity |
+| `{(x₁=-20, y₁=10, z₁=20), (x₂=-60, ...)}` (x2) | `{(-20,10,20), (-60,-30,-20)}` | assignments unwrapped inside tuples |
+| `{(1/3,1/3), (a,b)}` (x2) | `{(1/3,1/3), (a,b)}` with `(a,b)` parsed as an open interval | interval-as-pair accepted inside sets, as upstream does at top level |
+| `{(-x,2), (-y,2), (-z,2)}` | `{(x=-y, z=2), ...}` | assignments unwrapped inside tuples |
+| `(n-1)ⁿ n!` | chain `R(σ) = ∏ ... = (n-1)ⁿ n!` | last value of an equation chain |
+
+Upstream `True`, fastmathverify `False` (6):
+
+| gold | completion | cause |
+|---|---|---|
+| `a_n = n! Σ_{k=2}^{n} (-1)^k/k!` | `n! Σ_{k=0}^{n} (-1)^k/k!` | sums with a symbolic bound aren't evaluated |
+| `xy = 4` | `y = 4/x` | SymPy `solve` handles non-linear multi-symbol equations; we only solve linear/quadratic ones |
+| sets of polynomials in `n` | same sets written with `binomial(n, 4)` | `binomial` with a symbolic argument isn't expanded |
+| set of 8 intervals/tuples (x2) | same set, different element order | element ordering inside mixed sets |
+| `30!·1989!/2020!` | `30!/(10!)³` | **upstream false positive.** The values are 1.1·10⁻⁷⁰ and 5.6·10¹². Upstream's numeric check `(a - b).evalf(chop=True)` loses all precision on the huge factorials and returns `0`. fastmathverify evaluates exactly and returns `False` |
+
 ## API-level differences
 
 - `parse()` returns `fastmathverify.Expr` objects instead of SymPy objects. They print like

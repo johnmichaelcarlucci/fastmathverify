@@ -18,3 +18,9 @@ Vendored dependency:
   antlr4rust 0.6.0 (https://github.com/antlr4rust/antlr4), BSD 3-Clause License
   (vendor/antlr4rust/LICENSE.txt). Modified: `prediction_mode` is made public in
   vendor/antlr4rust/src/lib.rs so the parser can use SLL prediction.
+
+tests/data/regression.jsonl contains short excerpts (answers and solutions) from:
+- OpenR1-Math-220k (https://huggingface.co/datasets/open-r1/OpenR1-Math-220k), Apache-2.0
+- DeepScaleR-Preview-Dataset (https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset), MIT
+- MATH-500 (https://huggingface.co/datasets/HuggingFaceH4/MATH-500), a subset of the MATH
+  dataset by Hendrycks et al. (MIT)
