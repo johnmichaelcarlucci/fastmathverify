@@ -46,3 +46,18 @@ jobs:
           git -C ref/upstream checkout -q ba3d3aa
       - name: Run upstream suite against fastmathverify
         run: ./harness/run_upstream_tests.sh
+
+  sdist:
+    name: install from sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install maturin && maturin sdist --out dist
+      - run: python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.tar.gz
+      - name: Smoke test
+        working-directory: /tmp
+        run: /tmp/v/bin/python -c "import fastmathverify as F; assert F.verify(F.parse('\$\\frac12\$'), F.parse('\\boxed{0.5}'))"

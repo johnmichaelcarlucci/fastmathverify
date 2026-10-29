@@ -10,7 +10,7 @@ name = "fastmathverify"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-antlr4rust = "0.6"
+antlr4rust = { path = "vendor/antlr4rust", version = "0.6" }  # patched: see NOTICE
 fancy-regex = "0.14"
 regex = "1"
 num-bigint = "0.4"
@@ -33,5 +33,3 @@ codegen-units = 4
 [profile.dev]
 opt-level = 1
 
-[patch.crates-io]
-antlr4rust = { path = "vendor/antlr4rust" }
