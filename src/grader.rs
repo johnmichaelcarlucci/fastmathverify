@@ -576,7 +576,8 @@ fn deep_compare(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
     }
     // Sets are unordered: the value sort above can pair symbolic elements wrongly,
     // so match each gold element to any unused equal prediction element.
-    if g.len() > 64 {
+    // Elements that are equations keep upstream's sorted pairing.
+    if g.len() > 64 || g.iter().chain(&p).any(is_relation) {
         return straight;
     }
     let mut used = vec![false; p.len()];
