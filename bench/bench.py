@@ -7,7 +7,7 @@ import json, os, statistics, subprocess, sys, time
 from multiprocessing import Pool
 
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 2000
-pairs = [json.loads(l) for _, l in zip(range(N), open(sys.argv[1]))]
+pairs = [json.loads(l) for _, l in zip(range(N), open(sys.argv[1], encoding="utf-8"))]
 golds = [p["gold"] for p in pairs]
 preds = [p["pred"] for p in pairs]
 CORES = os.cpu_count()

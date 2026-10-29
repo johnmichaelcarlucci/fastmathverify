@@ -28,9 +28,9 @@ def run(line):
 
 if __name__ == "__main__":
     src, dst, procs = sys.argv[1], sys.argv[2], int(sys.argv[3])
-    lines = open(src).read().splitlines()
+    lines = open(src, encoding="utf-8").read().splitlines()
     t0 = time.time()
-    with Pool(procs, initializer=init, maxtasksperchild=2000) as pool, open(dst, "w") as out:
+    with Pool(procs, initializer=init, maxtasksperchild=2000) as pool, open(dst, "w", encoding="utf-8") as out:
         for i, r in enumerate(pool.imap(run, lines, chunksize=16)):
             out.write(r + "\n")
             if i % 2000 == 0:

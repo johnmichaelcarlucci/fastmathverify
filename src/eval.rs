@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use num_bigint::BigInt;
 use num_complex::Complex64 as C;
-use num_integer::{Integer, Roots};
+use num_integer::Integer;
 use num_traits::{One, Signed, ToPrimitive, Zero};
 
 use crate::expr::*;

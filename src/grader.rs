@@ -5,12 +5,12 @@ use std::cmp::Ordering;
 use num_bigint::BigInt;
 use num_complex::Complex64;
 use num_integer::Integer;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Zero};
 
 use crate::eval::{exact, numeric, Env};
 use crate::expr::*;
 use crate::extract::Item;
-use crate::poly::{evaluated_sub, solve_linear_dict, to_poly};
+use crate::poly::{evaluated_sub, to_poly};
 use crate::symbols::{display_name, is_real_symbol};
 
 #[derive(Clone, Copy, Debug)]

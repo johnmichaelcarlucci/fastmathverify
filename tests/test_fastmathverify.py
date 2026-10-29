@@ -147,3 +147,10 @@ def test_verify_batch_repeated_golds():
     golds = [r"$\frac{1}{2}$"] * 4 + ["$3$"] * 4
     preds = [r"\boxed{0.5}", r"\boxed{1}", r"\boxed{1/2}", "x"] + [r"\boxed{3}", r"\boxed{4}", "3", r"\boxed{3.0}"]
     assert F.verify_batch(golds, preds) == [F.verify(F.parse(g), F.parse(p)) for g, p in zip(golds, preds)]
+
+
+def test_cli(capsys):
+    from fastmathverify.__main__ import main
+    assert main([r"$\frac{1}{2}$", r"\boxed{0.5}"]) == 0
+    assert '"reason": "match"' in capsys.readouterr().out
+    assert main(["$2$", r"\boxed{3}"]) == 1

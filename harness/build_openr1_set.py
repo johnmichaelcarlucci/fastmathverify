@@ -8,7 +8,7 @@ for shard in ["00000", "00005"]:
     rows.extend(t.to_pylist())
 random.Random(1234).shuffle(rows)
 rows = rows[:8000]
-with open("data/openr1_pairs.jsonl", "w") as f:
+with open("data/openr1_pairs.jsonl", "w", encoding="utf-8") as f:
     n = 0
     for r in rows:
         gold = f"${r['answer']}$"

@@ -15,7 +15,6 @@ use antlr4rust::token_factory::TokenFactory;
 use antlr4rust::TokenSource;
 use antlr4rust::Parser;
 use antlr4rust::prediction_mode::PredictionMode;
-use antlr4rust::tree::{ParseTree, Tree};
 #[allow(unused_imports)]
 use antlr4rust::interval_set;
 

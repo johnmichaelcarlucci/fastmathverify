@@ -15,7 +15,7 @@ def dump(node):
     parts = [dump(c) for c in (node.children or []) if not (isinstance(c, TerminalNode) and c.getSymbol().type == -1)]
     return "(" + " ".join([name] + parts) + ")"
 
-for s in json.load(open(sys.argv[1])):
+for s in json.load(open(sys.argv[1], encoding="utf-8")):
     try:
         lex = PSLexer(InputStream(s)); lex.removeErrorListeners(); lex.addErrorListener(Raise())
         p = PSParser(CommonTokenStream(lex)); p.removeErrorListeners(); p.addErrorListener(Raise())

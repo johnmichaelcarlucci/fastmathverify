@@ -26,7 +26,7 @@ for r in rows:
         add("openr1", f"{r['uuid']}:g{gi}", gold, g)
     add("openr1", f"{r['uuid']}:sol", gold, r["solution"])
 
-ds = json.load(open("data/deepscaler.json"))
+ds = json.load(open("data/deepscaler.json", encoding="utf-8"))
 R.shuffle(ds)
 ds = ds[:12000]
 for i, r in enumerate(ds[:8000]):
@@ -35,8 +35,8 @@ for i in range(4000):
     a, b = ds[8000 + i], ds[R.randrange(len(ds))]
     add("dsr-cross", i, f"${a['answer']}$", b["solution"])
 
-answers = sorted({r["answer"].strip() for r in json.load(open("data/deepscaler.json"))} |
-                 {json.loads(l)["answer"].strip() for l in open("data/math500.jsonl")})
+answers = sorted({r["answer"].strip() for r in json.load(open("data/deepscaler.json", encoding="utf-8"))} |
+                 {json.loads(l)["answer"].strip() for l in open("data/math500.jsonl", encoding="utf-8")})
 fmts = ["$\\boxed{%s}$", "The answer is $%s$.", "Final Answer: $%s$", "\\[ %s \\]", "%s"]
 idx = list(range(len(answers) - 1))
 R.shuffle(idx)
@@ -46,7 +46,7 @@ for k, i in enumerate(idx[:12000]):
     if k % 4 == 0:  # some positives in each format too
         add("self", k, f"${answers[i]}$", fmt.replace("%s", answers[i]))
 
-with open("data/holdout_pairs.jsonl", "w") as f:
+with open("data/holdout_pairs.jsonl", "w", encoding="utf-8") as f:
     for d in out:
         f.write(json.dumps(d) + "\n")
 print(len(out), "pairs")

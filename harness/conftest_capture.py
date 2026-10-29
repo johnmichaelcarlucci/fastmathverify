@@ -10,5 +10,5 @@ P.latex2sympy = _wrap
 @atexit.register
 def _dump():
     out = os.environ.get("CAPTURE_OUT", "data/latex_inputs.json")
-    with open(out, "w") as f:
+    with open(out, "w", encoding="utf-8") as f:
         json.dump(sorted(set(_seen)), f)

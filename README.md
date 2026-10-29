@@ -121,8 +121,10 @@ Additions:
 
   ```python
   >>> mv.explain("$\\frac{1}{2}$", "so the answer is 0.6")
-  {'correct': False, 'gold': ['1/2'], 'pred': ['0.6'], 'reason': 'mismatch'}
+  {'correct': False, 'gold': ['1/2'], 'pred': ['0.600000000000000'], 'reason': 'mismatch'}
   ```
+- `python -m fastmathverify GOLD PRED [--exact]` prints the `explain()` result as JSON and exits 0 on
+  a match, 1 otherwise. Pass `-` as PRED to read it from stdin.
 - `exact=True` on `verify` and `verify_batch`: numbers compare by exact value. No rounding to
   `float_rounding` places (`0.3333333` is not `1/3`), and a percentage equals its value / 100
   (`9%` matches `0.09`, not `9`). Symbolic answers are graded the same in both modes.
