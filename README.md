@@ -1,12 +1,25 @@
-# fastmathverify
+<div align="center">
 
-A Rust rewrite of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-Verify): the
-answer checker used as the math reward function in TRL, verl, open-r1, SkyRL and Prime
-Intellect's verifiers.
+# ⚡ fastmathverify
 
-Same `parse()` / `verify()` API. **~16x faster on one core, ~60x with `verify_batch` on all
-cores, thread-safe, no `signal.alarm`, and zero Python dependencies** (no SymPy, no
-antlr4 runtime).
+**A Rust rewrite of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-Verify): the math answer checker behind reasoning-model RL.**
+
+**16× faster on one core · 60× on all cores · thread-safe · no hangs · zero Python dependencies**
+
+[![Upstream tests](https://img.shields.io/badge/upstream%20tests-291%2F291-brightgreen)](#correctness)
+[![OpenR1 agreement](https://img.shields.io/badge/OpenR1%20agreement-99.91%25-brightgreen)](#correctness)
+[![Speedup](https://img.shields.io/badge/speedup-60×-orange)](#benchmarks)
+[![Rust](https://img.shields.io/badge/core-Rust-b7410e?logo=rust)](src/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)](#install)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
+</div>
+
+---
+
+Math-Verify is the reward function used in **TRL, verl, open-r1, SkyRL and Prime Intellect's verifiers**.
+fastmathverify keeps the same `parse()` / `verify()` API and gives the same answers, but runs the whole
+pipeline in Rust.
 
 ```python
 import fastmathverify as mv        # drop-in for: import math_verify as mv
@@ -18,6 +31,15 @@ mv.verify(gold, pred)              # True
 # Grade a whole RL batch on all cores, GIL released:
 mv.verify_batch(gold_texts, completions)   # -> list[bool]
 ```
+
+<table>
+<tr>
+<td align="center"><h3>60×</h3>faster with <code>verify_batch</code><br>on 8 threads</td>
+<td align="center"><h3>291 / 291</h3>of upstream's own tests<br>pass unmodified</td>
+<td align="center"><h3>99.91%</h3>agreement on 24,506<br>OpenR1-Math-220k pairs</td>
+<td align="center"><h3>20×</h3>lower p99 latency<br>(12 ms vs 245 ms)</td>
+</tr>
+</table>
 
 ## Why
 
@@ -172,6 +194,18 @@ python harness/compare.py data/openr1_ref.jsonl data/openr1_ours.jsonl
 # benchmark
 python bench/bench.py data/openr1_pairs.jsonl 3000
 ```
+
+## 💬 Find this useful?
+
+**Message me!** If you're using fastmathverify in a training run, a reward server or an eval
+pipeline, I'd love to hear about it, and the same goes for bugs, mismatches with upstream or
+feature requests.
+
+- 💬 Say hi or share how you're using it in [Discussions](https://github.com/johnmichaelcarlucci/fastmathverify/discussions)
+- 🐛 Found an input where it disagrees with Math-Verify? [Open an issue](https://github.com/johnmichaelcarlucci/fastmathverify/issues) with the gold and prediction text
+- 👤 Or reach me through my profile: [@johnmichaelcarlucci](https://github.com/johnmichaelcarlucci)
+
+If it saved you some GPU hours, a ⭐ helps other people find it.
 
 ## License
 
