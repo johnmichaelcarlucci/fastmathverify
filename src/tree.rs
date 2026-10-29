@@ -4,6 +4,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use antlr4rust::error_strategy::BailErrorStrategy;
 use antlr4rust::common_token_stream::CommonTokenStream;
 use antlr4rust::error_listener::ErrorListener;
 use antlr4rust::errors::ANTLRError;
@@ -117,7 +118,9 @@ fn parse_with(data: &[u32], tokens: &[Tok], mode: PredictionMode) -> Result<Rule
     let mut lexer = PSLexer::new(InputStream::new(data));
     lexer.remove_error_listeners();
     let ts = CommonTokenStream::new(lexer);
-    let mut parser = PSParser::new(ts);
+    // Bail on the first syntax error, like latex2sympy2_extended's raising error listener.
+    // Default error recovery gives the same verdict but can take seconds on long garbage.
+    let mut parser = PSParser::with_strategy(ts, Box::new(BailErrorStrategy::new()));
     parser.get_interpreter().set_prediction_mode(mode);
     parser.remove_error_listeners();
     parser.add_error_listener(Box::new(flag.clone()));
