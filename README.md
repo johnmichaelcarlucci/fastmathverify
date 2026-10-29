@@ -4,37 +4,30 @@ A Rust port of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-
 
 [![CI](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml)
 
-Math-Verify is the reward function used in TRL, verl, open-r1, SkyRL and Prime Intellect's verifiers.
-fastmathverify has the same `parse()` / `verify()` API and gives the same answers, with the whole
-pipeline in Rust: 17x faster on one core, 67x with `verify_batch` on 8 threads, and thread-safe.
+Same `parse()` / `verify()` API and the same answers. 17x faster on one core, 67x with
+`verify_batch` on 8 threads, and it works from any thread.
 
 ```python
-import fastmathverify as mv        # same API as math_verify
+import fastmathverify as mv
 
 gold = mv.parse("$\\frac{1}{2}$")
 pred = mv.parse("... so the answer is \\boxed{0.5}")
 mv.verify(gold, pred)              # True
 
-# Grade a whole RL batch on all cores, GIL released:
 mv.verify_batch(gold_texts, completions)   # -> list[bool]
 ```
 
-## Motivation
+## Why
 
-Three problems with Math-Verify in reward servers:
-
-- Threads: Timeouts use `signal.alarm`, so `verify` returns `False` or raises
+- Math-Verify's timeouts use `signal.alarm`, so `verify` returns `False` or raises
   `signal only works in main thread` from worker threads (upstream issues
   [#42](https://github.com/huggingface/Math-Verify/issues/42),
   [#22](https://github.com/huggingface/Math-Verify/issues/22),
   [#50](https://github.com/huggingface/Math-Verify/issues/50),
   [#55](https://github.com/huggingface/Math-Verify/issues/55)). Reward servers end up forking processes.
-- Speed: Every call goes through regexes, an ANTLR parser in
-  pure Python, and SymPy.
-- Install: Its `latex2sympy2_extended` dependency pins specific antlr4 runtimes
+- It's slow: every call runs regexes, a pure-Python ANTLR parser and SymPy.
+- Its `latex2sympy2_extended` dependency pins specific antlr4 runtimes
   ([#12](https://github.com/huggingface/Math-Verify/issues/12)).
-
-fastmathverify uses upstream's extraction regexes, LaTeX grammar and comparison rules.
 
 ## Install
 
@@ -58,8 +51,8 @@ Same machine (8 cores, 3 GB RAM), same pairs, `math-verify` 0.9.0 / SymPy 1.14 /
 |---|---:|---:|---:|
 | `math_verify`, 1 process | 65.9 s | 46 | 1x |
 | `math_verify`, `multiprocessing.Pool(8)` | 12.4 s | 242 | 5x |
-| **`fastmathverify`, 1 thread (Python loop)** | **3.81 s** | **788** | **17.3x** |
-| **`fastmathverify.verify_batch`, 8 threads** | **0.97 s** | **3,081** | **67x** |
+| `fastmathverify`, 1 thread (Python loop) | 3.81 s | 788 | 17.3x |
+| `fastmathverify.verify_batch`, 8 threads | 0.97 s | 3,081 | 67x |
 
 | latency per pair | math_verify | fastmathverify |
 |---|---:|---:|
@@ -74,11 +67,11 @@ Target: the same answer as upstream on every input.
 
 | check | result |
 |---|---|
-| `verify()` agreement with upstream on **24,506** OpenR1-Math-220k pairs (development set) | **99.914%** (24,485) |
-| `verify()` agreement on **41,437 held-out pairs** never used during development (below) | **99.961%** (41,421) |
+| `verify()` agreement with upstream on 24,506 OpenR1-Math-220k pairs (development set) | 99.914% (24,485) |
+| `verify()` agreement on 41,437 held-out pairs never used during development (below) | 99.961% (41,421) |
 | extracted answer string identical to upstream (both sets, 65,943 pairs) | 65,943 / 65,943 |
 | LaTeX parse trees identical to Python ANTLR (2,639 real parser inputs) | 2,639 / 2,639 |
-| upstream's own test suite, run unmodified against fastmathverify | **291 / 291** |
+| upstream's own test suite, run unmodified against fastmathverify | 291 / 291 |
 | fastmathverify's own tests: Python (`tests/*.py`) and Rust (`cargo test`) | 26 / 26 and 7 / 7 |
 | regression corpus: 2,701 pairs with recorded upstream verdicts, checked in CI | 2,701 / 2,701 |
 | mutation fuzzing (`src/bin/fuzz.rs`): 860,000 mangled inputs | 0 panics; slowest pair 0.6 s |
@@ -86,7 +79,7 @@ Target: the same answer as upstream on every input.
 The held-out set (`harness/build_holdout_set.py`) was built after development finished,
 from data the port never saw: 13,437 OpenR1 traces from two other shards, 8,000 DeepScaleR
 (answer, solution) pairs, 4,000 mismatched DeepScaleR pairs, 3,000 answers checked against
-themselves in five answer formats, and **12,000 near-miss negatives** (each DeepScaleR /
+themselves in five answer formats, and 12,000 near-miss negatives (each DeepScaleR /
 MATH-500 answer against its neighbour in sorted order, so `\frac{1}{2}` meets
 `\frac{1}{3}`). The near-miss pairs are there to catch a grader that's too lenient, which is
 what matters for an RL reward. They found one bug, now fixed: a number too large for a
@@ -95,14 +88,14 @@ also turned up a false positive in upstream itself: Math-Verify accepts
 `30!·1989!/2020!` for `30!/(10!)³` (1.1·10⁻⁷⁰ vs 5.6·10¹²) because SymPy's `evalf` loses
 precision on the factorials. fastmathverify evaluates exactly and rejects it.
 
-**Hooks.** Upstream's tests patch its comparison and conversion
+Upstream's tests patch its comparison and conversion
 functions to inject delays and errors, so fastmathverify exposes the same hook points:
 `fastmathverify.grader.sympy_expr_eq`, `fastmathverify.parser.latex2sympy` and
 `fastmathverify.parser.parse_expr`. Left as they are, everything runs in Rust. Replace one
 and `verify`/`parse` route through your function, with `timeout_seconds`/`parsing_timeout`
 enforced in a worker thread (no signals) and `raise_on_error` honoured.
 
-**About the disagreements (21 of 24,506 and 16 of 41,437).** 16 are cases where upstream returns
+Disagreements (21 of 24,506 and 16 of 41,437): 16 are cases where upstream returns
 `False` but the answers are mathematically equal and SymPy's `simplify` can't prove it, for
 example `cos(2π/7) + cos(4π/7) + cos(6π/7) = -1/2`, tan half-angle forms and `sqrt`/`log`
 rewrites. fastmathverify uses randomized numeric identity testing instead of `simplify`, so
@@ -142,28 +135,24 @@ def accuracy_reward(completions, solution, **kwargs):
 
 ## How it works
 
-```
-text ─► extraction regexes ─► normalize_latex ─► ANTLR LaTeX parser ─► expression tree ─► grader
-        (upstream's, DFA       (port of          (upstream's PS.g4,      (mirrors the        (port of grader.py;
-         prefilter)             latex2sympy2)     generated for Rust)     SymPy objects)       numeric identity tests)
-```
+Pipeline: extraction regexes, LaTeX normalization, ANTLR parse, expression tree, grader.
 
-- **Extraction**: upstream's regexes, verbatim, run with `fancy-regex`. A lookaround-free
+- Extraction: upstream's regexes, verbatim, run with `fancy-regex`. A lookaround-free
   copy of each pattern runs first on the `regex` crate's DFA to jump to candidate positions.
   Every real match is also a match of the relaxed pattern, so results are identical, and it's
   20-150x faster than running the backtracking VM at every position.
-- **Parsing**: the *same* `PS.g4` grammar latex2sympy2_extended uses, compiled to Rust with
+- Parsing: the same `PS.g4` grammar latex2sympy2_extended uses, compiled to Rust with
   [antlr4rust](https://github.com/antlr4rust/antlr4). Two-stage prediction (SLL, then full LL
   on a syntax error) gives identical trees to Python's ANTLR on every input tested.
-- **Conversion**: a function-by-function port of latex2sympy2_extended's converter into an
+- Conversion: a function-by-function port of latex2sympy2_extended's converter into an
   expression tree that mirrors SymPy's unevaluated objects (`Mul(-1, x)`, `UnevaluatedExpr`
   percentages, the unsorted `FiniteSet`, `And` chains...).
-- **Grading**: a port of `grader.py` with the same dispatch order and quirks (rounding
+- Grading: a port of `grader.py` with the same dispatch order and quirks (rounding
   `Float`s to 6 places, `9% == 9`, assignment unwrapping, interval/tuple handling, even
   `solve`-based equation comparison). Exact rational arithmetic decides whenever it can;
   where upstream calls `simplify(a - b) == 0`, fastmathverify evaluates both sides at
   several random real (or complex) points with principal branches.
-- **Safety**: big-number arithmetic is size-capped, sums and products are bounded, regex
+- Safety: big-number arithmetic is size-capped, sums and products are bounded, regex
   backtracking is limited, and every stage checks a per-thread deadline.
 
 ## Reproducing
@@ -196,9 +185,7 @@ cargo run --release --bin fuzz -- tests/data/regression.jsonl 200000 8
 python bench/bench.py data/openr1_pairs.jsonl 3000
 ```
 
-## Contact
-
-Issues and mismatches with Math-Verify: [open an issue](https://github.com/johnmichaelcarlucci/fastmathverify/issues) with the gold and prediction text.
+Found a mismatch with Math-Verify? Open an issue with the gold and prediction text.
 
 ## License
 

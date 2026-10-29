@@ -1,8 +1,8 @@
 # Known differences from upstream Math-Verify
 
 Measured on 24,506 (gold, completion) pairs from OpenR1-Math-220k
-(`harness/compare.py data/openr1_ref.jsonl data/openr1_ours.jsonl`): **24,485 agree
-(99.914%)**, 21 differ. The extracted answer strings are identical on all 24,506 pairs; every
+(`harness/compare.py data/openr1_ref.jsonl data/openr1_ours.jsonl`): 24,485 agree
+(99.914%), 21 differ. The extracted answer strings are identical on all 24,506 pairs; every
 difference is in the comparison step.
 
 ## Upstream `False`, fastmathverify `True` (16)
@@ -13,7 +13,7 @@ evaluates both sides at several random points, so it accepts true identities tha
 
 | gold | completion | note |
 |---|---|---|
-| `-1/2` | `cos(2π/7) + cos(4π/7) + cos(6π/7)` | classic identity SymPy can't simplify |
+| `-1/2` | `cos(2π/7) + cos(4π/7) + cos(6π/7)` | identity SymPy can't simplify |
 | `tan((α-γ)/2) / (2 tan((α+γ)/2))` (x2) | `(sin α - sin γ) / (2 (sin α + sin γ))` | sum-to-product identity |
 | `acos(2/sqrt(sin²2α + 8))` | `acos(1/sqrt((sin²α+1)(cos²α+1)))` | trig identity |
 | `C - 2 sqrt((x^{1/3}+1)^3/x)` (x2) | `C - 2 (x^{1/3}+1)^{3/2}/sqrt(x)` | power/root rewrite |
@@ -65,7 +65,7 @@ Upstream `True`, fastmathverify `False` (6):
 | `xy = 4` | `y = 4/x` | SymPy `solve` handles non-linear multi-symbol equations; we only solve linear/quadratic ones |
 | sets of polynomials in `n` | same sets written with `binomial(n, 4)` | `binomial` with a symbolic argument isn't expanded |
 | set of 8 intervals/tuples (x2) | same set, different element order | element ordering inside mixed sets |
-| `30!·1989!/2020!` | `30!/(10!)³` | **upstream false positive.** The values are 1.1·10⁻⁷⁰ and 5.6·10¹². Upstream's numeric check `(a - b).evalf(chop=True)` loses all precision on the huge factorials and returns `0`. fastmathverify evaluates exactly and returns `False` |
+| `30!·1989!/2020!` | `30!/(10!)³` | Upstream false positive: the values are 1.1·10⁻⁷⁰ and 5.6·10¹². Upstream's numeric check `(a - b).evalf(chop=True)` loses all precision on the huge factorials and returns `0`. fastmathverify evaluates exactly and returns `False` |
 
 ## API-level differences
 
