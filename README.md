@@ -1,29 +1,15 @@
-<div align="center">
+# fastmathverify
 
-# ⚡ fastmathverify
-
-**A Rust rewrite of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-Verify): the math answer checker behind reasoning-model RL.**
-
-**17× faster on one core · 67× on all cores · thread-safe · no hangs · zero Python dependencies**
+A Rust port of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-Verify), the math answer checker used as a reward function in reasoning-model RL.
 
 [![CI](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml)
-[![Upstream tests](https://img.shields.io/badge/upstream%20tests-291%2F291-brightgreen)](#correctness)
-[![OpenR1 agreement](https://img.shields.io/badge/OpenR1%20agreement-99.91%25-brightgreen)](#correctness)
-[![Speedup](https://img.shields.io/badge/speedup-67×-orange)](#benchmarks)
-[![Rust](https://img.shields.io/badge/core-Rust-b7410e?logo=rust)](src/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)](#install)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-</div>
-
----
-
-Math-Verify is the reward function used in **TRL, verl, open-r1, SkyRL and Prime Intellect's verifiers**.
-fastmathverify keeps the same `parse()` / `verify()` API and gives the same answers, but runs the whole
-pipeline in Rust.
+Math-Verify is the reward function used in TRL, verl, open-r1, SkyRL and Prime Intellect's verifiers.
+fastmathverify has the same `parse()` / `verify()` API and gives the same answers, with the whole
+pipeline in Rust: 17x faster on one core, 67x with `verify_batch` on 8 threads, and thread-safe.
 
 ```python
-import fastmathverify as mv        # drop-in for: import math_verify as mv
+import fastmathverify as mv        # same API as math_verify
 
 gold = mv.parse("$\\frac{1}{2}$")
 pred = mv.parse("... so the answer is \\boxed{0.5}")
@@ -33,32 +19,22 @@ mv.verify(gold, pred)              # True
 mv.verify_batch(gold_texts, completions)   # -> list[bool]
 ```
 
-<table>
-<tr>
-<td align="center"><h3>67×</h3>faster with <code>verify_batch</code><br>on 8 threads</td>
-<td align="center"><h3>291 / 291</h3>of upstream's own tests<br>pass unmodified</td>
-<td align="center"><h3>99.91%</h3>agreement on 24,506<br>OpenR1-Math-220k pairs</td>
-<td align="center"><h3>22×</h3>lower p99 latency<br>(12 ms vs 264 ms)</td>
-</tr>
-</table>
+## Motivation
 
-## Why
+Three problems with Math-Verify in reward servers:
 
-Math-Verify is the de facto reward function for reasoning-model RL, but:
-
-- **It breaks in threads.** Timeouts use `signal.alarm`, so `verify` returns `False` or raises
+- Threads: Timeouts use `signal.alarm`, so `verify` returns `False` or raises
   `signal only works in main thread` from worker threads (upstream issues
   [#42](https://github.com/huggingface/Math-Verify/issues/42),
   [#22](https://github.com/huggingface/Math-Verify/issues/22),
   [#50](https://github.com/huggingface/Math-Verify/issues/50),
   [#55](https://github.com/huggingface/Math-Verify/issues/55)). Reward servers end up forking processes.
-- **It's slow for reward computation.** Every call goes through regexes, an ANTLR parser in
+- Speed: Every call goes through regexes, an ANTLR parser in
   pure Python, and SymPy.
-- **Install pain.** Its `latex2sympy2_extended` dependency pins specific antlr4 runtimes
+- Install: Its `latex2sympy2_extended` dependency pins specific antlr4 runtimes
   ([#12](https://github.com/huggingface/Math-Verify/issues/12)).
 
-fastmathverify keeps upstream's behaviour (same extraction regexes, same LaTeX grammar,
-same comparison rules) and replaces the engine.
+fastmathverify uses upstream's extraction regexes, LaTeX grammar and comparison rules.
 
 ## Install
 
@@ -94,7 +70,7 @@ Reproduce: `python bench/bench.py data/openr1_pairs.jsonl 3000` (see *Reproducin
 
 ## Correctness
 
-The goal is to give the same answer as upstream, not a "better" one.
+Target: the same answer as upstream on every input.
 
 | check | result |
 |---|---|
@@ -107,19 +83,19 @@ The goal is to give the same answer as upstream, not a "better" one.
 | regression corpus: 2,701 pairs with recorded upstream verdicts, checked in CI | 2,701 / 2,701 |
 | mutation fuzzing (`src/bin/fuzz.rs`): 860,000 mangled inputs | 0 panics; slowest pair 0.6 s |
 
-**The held-out set** (`harness/build_holdout_set.py`) was built after development finished,
+The held-out set (`harness/build_holdout_set.py`) was built after development finished,
 from data the port never saw: 13,437 OpenR1 traces from two other shards, 8,000 DeepScaleR
 (answer, solution) pairs, 4,000 mismatched DeepScaleR pairs, 3,000 answers checked against
 themselves in five answer formats, and **12,000 near-miss negatives** (each DeepScaleR /
 MATH-500 answer against its neighbour in sorted order, so `\frac{1}{2}` meets
 `\frac{1}{3}`). The near-miss pairs are there to catch a grader that's too lenient, which is
-what matters for an RL reward. They found one real bug, now fixed: a number too large for a
+what matters for an RL reward. They found one bug, now fixed: a number too large for a
 float (`10^{400}`, `2005!`) overflowed to infinity and matched any other huge value. They
 also turned up a false positive in upstream itself: Math-Verify accepts
 `30!·1989!/2020!` for `30!/(10!)³` (1.1·10⁻⁷⁰ vs 5.6·10¹²) because SymPy's `evalf` loses
 precision on the factorials. fastmathverify evaluates exactly and rejects it.
 
-**Pluggable like upstream.** Upstream's tests patch its comparison and conversion
+**Hooks.** Upstream's tests patch its comparison and conversion
 functions to inject delays and errors, so fastmathverify exposes the same hook points:
 `fastmathverify.grader.sympy_expr_eq`, `fastmathverify.parser.latex2sympy` and
 `fastmathverify.parser.parse_expr`. Left as they are, everything runs in Rust. Replace one
@@ -155,7 +131,7 @@ Additions:
 - Timeouts are cooperative, thread-local deadlines, so they work from any thread. As upstream,
   a timed-out `parse` returns `[]` and a timed-out comparison counts as `False`.
 
-Drop-in in TRL/verl-style reward functions:
+In a TRL/verl-style reward function:
 
 ```python
 from fastmathverify import parse, verify, verify_batch
@@ -220,17 +196,9 @@ cargo run --release --bin fuzz -- tests/data/regression.jsonl 200000 8
 python bench/bench.py data/openr1_pairs.jsonl 3000
 ```
 
-## 💬 Find this useful?
+## Contact
 
-**Message me!** If you're using fastmathverify in a training run, a reward server or an eval
-pipeline, I'd love to hear about it, and the same goes for bugs, mismatches with upstream or
-feature requests.
-
-- 💬 Say hi or share how you're using it in [Discussions](https://github.com/johnmichaelcarlucci/fastmathverify/discussions)
-- 🐛 Found an input where it disagrees with Math-Verify? [Open an issue](https://github.com/johnmichaelcarlucci/fastmathverify/issues) with the gold and prediction text
-- 👤 Or reach me through my profile: [@johnmichaelcarlucci](https://github.com/johnmichaelcarlucci)
-
-If it saved you some GPU hours, a ⭐ helps other people find it.
+Issues and mismatches with Math-Verify: [open an issue](https://github.com/johnmichaelcarlucci/fastmathverify/issues) with the gold and prediction text.
 
 ## License
 
