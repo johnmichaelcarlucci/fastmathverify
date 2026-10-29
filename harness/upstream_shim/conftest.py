@@ -16,9 +16,7 @@ for name in F.__all__:
 parser = types.ModuleType("math_verify.parser")
 for name in ["parse", "LatexExtractionConfig", "ExprExtractionConfig", "StringExtractionConfig"]:
     setattr(parser, name, getattr(F, name))
-grader = types.ModuleType("math_verify.grader")
-grader.verify = F.verify
-grader.sympy_expr_eq = sympy_expr_eq
+grader = F.grader  # real module: patching its sympy_expr_eq affects F.verify
 errors = types.ModuleType("math_verify.errors")
 class TimeoutException(Exception):
     pass

@@ -12,6 +12,7 @@ from typing import Literal, Sequence
 
 from . import _core
 from ._core import Expr
+from . import grader
 
 def _srepr_to_sympy(srepr: str):
     """Rebuild a SymPy object from the constructor string our printer produces."""
@@ -150,10 +151,51 @@ def verify(
 ) -> bool:
     """Return True if any parsed ``target`` matches any parsed ``gold`` (math_verify.verify)."""
     timeout = float(timeout_seconds) if timeout_seconds else None
+    if grader.sympy_expr_eq is not grader._DEFAULT:
+        return _verify_with_hook(_coerce(gold), _coerce(target), float_rounding, numeric_precision, strict,
+                                 allow_set_relation_comp, timeout, raise_on_error)
     return _core.verify_items(
         _coerce(gold), _coerce(target), int(float_rounding), int(numeric_precision), bool(strict),
         bool(allow_set_relation_comp), timeout,
     )
+
+
+def _verify_with_hook(gold, target, float_rounding, numeric_precision, strict, allow_set_relation_comp,
+                      timeout, raise_on_error):
+    """Slow path: a user-supplied grader.sympy_expr_eq, per (gold, target) pair."""
+    import threading
+
+    golds = gold if isinstance(gold, list) else [gold]
+    targets = target if isinstance(target, list) else [target]
+    for g in golds:
+        for t in targets:
+            if isinstance(g, str) and isinstance(t, str):
+                if g.strip() and t.strip() and g.strip() == t.strip():
+                    return True
+                continue
+            if isinstance(g, str) or isinstance(t, str):
+                continue
+            box = {}
+
+            def run():
+                try:
+                    box["r"] = grader.sympy_expr_eq(g, t, float_rounding, numeric_precision,
+                                                    allow_set_relation_comp, strict)
+                except BaseException as e:  # noqa: BLE001
+                    box["e"] = e
+
+            th = threading.Thread(target=run, daemon=True)
+            th.start()
+            th.join(timeout)
+            if th.is_alive():
+                continue  # timed out -> this comparison counts as False
+            if "e" in box:
+                if raise_on_error:
+                    raise box["e"]
+                continue
+            if box.get("r"):
+                return True
+    return False
 
 
 def verify_batch(

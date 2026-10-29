@@ -76,16 +76,19 @@ The goal is to give the same answer as upstream, not a "better" one.
 | `verify()` agreement with upstream on **24,506** OpenR1-Math-220k pairs | **99.914%** (24,485) |
 | extracted answer string identical to upstream (same pairs) | 24,506 / 24,506 |
 | LaTeX parse trees identical to Python ANTLR (2,639 real parser inputs) | 2,639 / 2,639 |
-| upstream's own test suite, run unmodified against fastmathverify | **287 / 291** |
+| upstream's own test suite, run unmodified against fastmathverify | **289 / 291 (99.3%)** |
 | fastmathverify's own tests (`tests/`) | 26 / 26 |
 
-**About the 4 upstream tests that don't pass.** All four (`test_timeout.py` x3,
-`test_raise_on_error.py`) use `unittest.mock.patch` on upstream's *private Python
-functions* (`math_verify.parser.parse_expr`, `math_verify.parser.latex2sympy`,
-`math_verify.grader.sympy_expr_eq`) to inject sleeps or exceptions. fastmathverify doesn't
-call those Python functions, so the mocks have nothing to intercept. The behaviour those
-tests protect (timeouts honoured, errors never escape `verify`) is covered by our own tests
-in `tests/`. All 287 behavioural tests pass.
+**About the 2 upstream tests that don't pass.** Both are in `test_timeout.py` and use
+`unittest.mock.patch` on private helpers of upstream's SymPy-based parser
+(`math_verify.parser.parse_expr`, `math_verify.parser.latex2sympy`) to inject a 5-second
+sleep. The Rust parser doesn't call those Python functions, so there's nothing to patch.
+Parse timeouts themselves are enforced and tested in `tests/`.
+
+The comparison step *is* pluggable like upstream's: `fastmathverify.grader.sympy_expr_eq`
+is the default comparator, and if you replace it, `verify` routes each comparison through
+your function with `timeout_seconds` (worker thread, no signals) and `raise_on_error`
+honoured. That's why upstream's `test_timeout_verify` and `test_raise_on_error` pass.
 
 **About the 21 OpenR1 disagreements (0.086%).** 16 are cases where upstream returns
 `False` but the answers are mathematically equal and SymPy's `simplify` can't prove it, for
@@ -111,6 +114,8 @@ Additions:
 - `parse()` returns `fastmathverify.Expr` objects (plus the fallback string, like upstream).
   `str(expr)` prints SymPy-style; `expr.to_sympy()` returns the equivalent SymPy object, and
   `expr == sympy_obj` / `verify(sympy_obj, ...)` work when SymPy is installed.
+- `fastmathverify.grader.sympy_expr_eq` is a replaceable comparator hook (see above); the
+  Rust fast path is used when it's left as the default.
 - Timeouts are cooperative, thread-local deadlines, so they work from any thread. As upstream,
   a timed-out `parse` returns `[]` and a timed-out comparison counts as `False`.
 

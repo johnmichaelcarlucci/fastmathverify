@@ -47,7 +47,7 @@ both sides agree wherever they're defined.
 - Timeouts are cooperative deadlines, not `signal.alarm`, so they work in threads. A stage
   that is already inside one big-integer operation finishes it before the deadline is seen.
   Those operations are size-capped, so this is bounded.
-- `raise_on_error=True` has nothing to re-raise: internal errors are handled like upstream
-  handles them by default (`parse` returns `[]`, `verify` returns `False`).
+- `raise_on_error=True` only matters with a custom `grader.sympy_expr_eq`: the Rust path
+  handles internal errors like upstream's default (`parse` returns `[]`, `verify` returns `False`).
 - Matrix operators upstream evaluates through SymPy (`\operatorname{rref}`, `eig`, `svd`,
   elementary row transforms) are not supported; those expressions fail to parse.
