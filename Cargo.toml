@@ -3,7 +3,7 @@ name = "fastmathverify"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Rust rewrite of Hugging Face Math-Verify: thread-safe, hang-free math answer verification"
+description = "Fast, thread-safe math answer verification for LLM outputs"
 
 [lib]
 name = "fastmathverify"

@@ -1,11 +1,11 @@
 # fastmathverify
 
-A Rust port of Hugging Face's [Math-Verify](https://github.com/huggingface/Math-Verify), the math answer checker used as a reward function in reasoning-model RL.
+A fast math answer checker for Python, written in Rust. It pulls the final answer out of a model's output, parses LaTeX or plain expressions, and decides whether it matches the gold answer. Built for reward functions in reasoning-model RL.
 
 [![CI](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnmichaelcarlucci/fastmathverify/actions/workflows/ci.yml)
 
-Same `parse()` / `verify()` API and the same answers. 17x faster on one core, 67x with
-`verify_batch` on 8 threads, and it works from any thread.
+Accepts the same `parse()` / `verify()` calls as Math-Verify and returns the same verdicts. 17x faster on one core,
+67x with `verify_batch` on 8 threads, and it works from any thread.
 
 ```python
 import fastmathverify as mv
@@ -17,17 +17,14 @@ mv.verify(gold, pred)              # True
 mv.verify_batch(gold_texts, completions)   # -> list[bool]
 ```
 
-## Why
+## Features
 
-- Math-Verify's timeouts use `signal.alarm`, so `verify` returns `False` or raises
-  `signal only works in main thread` from worker threads (upstream issues
-  [#42](https://github.com/huggingface/Math-Verify/issues/42),
-  [#22](https://github.com/huggingface/Math-Verify/issues/22),
-  [#50](https://github.com/huggingface/Math-Verify/issues/50),
-  [#55](https://github.com/huggingface/Math-Verify/issues/55)). Reward servers end up forking processes.
-- It's slow: every call runs regexes, a pure-Python ANTLR parser and SymPy.
-- Its `latex2sympy2_extended` dependency pins specific antlr4 runtimes
-  ([#12](https://github.com/huggingface/Math-Verify/issues/12)).
+- Answer extraction from `oxed{}`, `$...$`, "the answer is" and plain expressions.
+- LaTeX parsing: fractions, roots, powers, trig and log functions, sets, intervals, tuples, matrices, equations.
+- Equivalence checking: exact rational arithmetic, numeric identity tests, set and interval comparison, equation solving.
+- Timeouts that work in any thread; no signals, no subprocesses.
+- Batch grading across all cores with the GIL released.
+- No SymPy or ANTLR runtime needed at run time.
 
 ## Install
 
@@ -192,5 +189,5 @@ Found a mismatch with Math-Verify? Open an issue with the gold and prediction te
 Apache-2.0. The LaTeX grammar comes from
 [latex2sympy2_extended](https://github.com/huggingface/latex2sympy2_extended) (MIT), and
 behaviour follows [Math-Verify](https://github.com/huggingface/Math-Verify) (Apache-2.0),
-both by Hugging Face. A lightly patched copy of antlr4rust (BSD-3-Clause) is vendored in
+A lightly patched copy of antlr4rust (BSD-3-Clause) is vendored in
 `vendor/`. See [NOTICE](NOTICE).

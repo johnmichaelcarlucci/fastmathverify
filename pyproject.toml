@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "fastmathverify"
 version = "0.1.0"
-description = "Rust rewrite of Hugging Face Math-Verify: same API, thread-safe, hang-free, much faster"
+description = "Fast, thread-safe math answer verification for LLM outputs, written in Rust"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"

@@ -1,8 +1,8 @@
-"""fastmathverify: a Rust rewrite of Hugging Face Math-Verify.
+"""fastmathverify: fast math answer verification, written in Rust.
 
-Drop-in replacement for ``math_verify``: same ``parse()`` / ``verify()`` API and
-extraction configs, but thread-safe, hang-free (no ``signal.alarm``), GIL-free,
-and much faster. Use ``verify_batch`` to grade many answers on all cores.
+Same ``parse()`` / ``verify()`` API and extraction configs as ``math_verify``.
+Thread-safe, no ``signal.alarm``, releases the GIL. ``verify_batch`` grades many
+answers on all cores.
 """
 
 from __future__ import annotations
