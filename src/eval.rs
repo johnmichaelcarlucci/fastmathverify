@@ -243,9 +243,7 @@ pub fn numeric(e: &Expr, env: &Env) -> Option<C> {
                 return Some(ci(rat_to_f64(&r)));
             }
             let Expr::Sym(v) = &**var else { return None };
-            let lo = exact(lo)?;
-            let hi = exact(hi)?;
-            let (lo, hi) = (lo.to_integer().to_i64()?, hi.to_integer().to_i64()?);
+            let (lo, hi) = (int_bound(lo, env)?, int_bound(hi, env)?);
             if hi - lo > 100_000 {
                 return None;
             }
@@ -264,6 +262,19 @@ pub fn numeric(e: &Expr, env: &Env) -> Option<C> {
         _ => return None,
     };
     if v.re.is_finite() && v.im.is_finite() { Some(v) } else { None }
+}
+
+// A sum bound: exact when constant, else numeric under `env` (a bound symbol
+// sampled at an integer) when the value is an integer.
+fn int_bound(e: &Expr, env: &Env) -> Option<i64> {
+    if let Some(r) = exact(e) {
+        return r.to_integer().to_i64();
+    }
+    let z = numeric(e, env)?;
+    if z.im != 0.0 || z.re.fract() != 0.0 || z.re.abs() > 1e9 {
+        return None;
+    }
+    Some(z.re as i64)
 }
 
 fn cpow(b: C, x: C) -> Option<C> {

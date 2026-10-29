@@ -113,3 +113,9 @@ fn set_elements_match_in_any_order() {
     assert!(v(r"$\{n^2+1, \binom{n}{2}\}$", r"$\boxed{\{\frac{n(n-1)}{2}, n^2+1\}}$"));
     assert!(!v(r"$\{n^2+1, \binom{n}{2}\}$", r"$\boxed{\{\frac{n(n+1)}{2}, n^2+1\}}$"));
 }
+
+#[test]
+fn sums_with_symbolic_bound() {
+    assert!(v(r"$a_n = n! \sum_{k=2}^{n} \frac{(-1)^k}{k!}$", r"$\boxed{n! \sum_{k=0}^{n} \frac{(-1)^k}{k!}}$"));
+    assert!(!v(r"$\sum_{k=1}^{n} k$", r"$\boxed{\sum_{k=0}^{n} (k+1)}$"));
+}

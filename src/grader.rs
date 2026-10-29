@@ -130,6 +130,11 @@ pub fn semantic_eq(a: &Expr, b: &Expr) -> bool {
             _ => struct_eq(a, b),
         };
     }
+    let mut bound = sum_bound_symbols(a);
+    bound.extend(sum_bound_symbols(b));
+    if !bound.is_empty() {
+        return sum_eq(a, b, &syms, &bound);
+    }
     let mut ok = 0;
     for t in 0..6 {
         if crate::deadline::expired() {
@@ -161,6 +166,54 @@ pub fn semantic_eq(a: &Expr, b: &Expr) -> bool {
         return true;
     }
     struct_eq(a, b)
+}
+
+/// Free symbols in the bounds of a Sum/Product inside `e`.
+fn sum_bound_symbols(e: &Expr) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Expr::Sum { lo, hi, .. } = e {
+        out.extend(lo.free_symbols());
+        out.extend(hi.free_symbols());
+    }
+    for c in e.children() {
+        out.extend(sum_bound_symbols(c));
+    }
+    out
+}
+
+/// `semantic_eq` for sums with symbolic bounds: bound symbols take the integers
+/// 2..=7, other symbols the usual samples. Every defined point must agree and
+/// at least 3 must be defined.
+fn sum_eq(a: &Expr, b: &Expr, syms: &[String], bound: &[String]) -> bool {
+    let mut ok = 0;
+    for t in 0..6 {
+        if crate::deadline::expired() {
+            return false;
+        }
+        let mut env = Env::new();
+        for (i, s) in syms.iter().enumerate() {
+            let k = (t + 2 * i) % 6;
+            let v = if bound.contains(s) {
+                Complex64::new((2 + (t + i) % 6) as f64, 0.0)
+            } else if is_real_symbol(s) {
+                Complex64::new(SAMPLE_REAL[k] + 0.0371 * i as f64, 0.0)
+            } else {
+                Complex64::new(SAMPLE_REAL[k], SAMPLE_IM[(k + 1) % 6])
+            };
+            env.insert(s.clone(), v);
+        }
+        match (numeric(a, &env), numeric(b, &env)) {
+            (Some(x), Some(y)) => {
+                if !finite(x) || !finite(y) || !close(x, y) {
+                    return false;
+                }
+                ok += 1;
+            }
+            (None, None) => {}
+            _ => return false,
+        }
+    }
+    ok >= 3 || struct_eq(a, b)
 }
 
 // ---------------- helpers mirroring grader.py ----------------
