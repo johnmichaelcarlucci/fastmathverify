@@ -226,6 +226,71 @@ pub fn evaluated_sub(a: &Expr, b: &Expr) -> Expr {
     }
 }
 
+/// Numerator of `e` after multiplying through by every denominator (atoms
+/// `b^-n`, integer n > 0), with the distinct denominator bases.
+pub fn cleared_numerator(e: &Expr) -> Option<(Poly, Vec<Expr>)> {
+    let p = to_poly(e)?;
+    // denominator atom key -> (base key, n)
+    let mut dens: BTreeMap<String, (String, u32)> = BTreeMap::new();
+    let mut bases: BTreeMap<String, (Expr, Poly)> = BTreeMap::new();
+    for (k, a) in &p.atoms {
+        if let Expr::Pow(b, x) = a {
+            if let Expr::Num(Num::Int(n)) = &**x {
+                let n = n.to_i64()?;
+                if n < 0 {
+                    if n < -12 {
+                        return None;
+                    }
+                    let bk = key_of(b);
+                    if !bases.contains_key(&bk) {
+                        bases.insert(bk.clone(), ((**b).clone(), to_poly(b)?));
+                    }
+                    dens.insert(k.clone(), (bk, n.unsigned_abs() as u32));
+                }
+            }
+        }
+    }
+    if dens.is_empty() {
+        return Some((p, vec![]));
+    }
+    // monomial -> (non-denominator part, power of each base it divides by)
+    let split = |m: &Mono| {
+        let mut rest = Mono::new();
+        let mut by: BTreeMap<String, u32> = BTreeMap::new();
+        for (k, e) in m {
+            match dens.get(k) {
+                Some((bk, n)) => *by.entry(bk.clone()).or_insert(0) += n * e,
+                None => rest.push((k.clone(), *e)),
+            }
+        }
+        (rest, by)
+    };
+    let mut max: BTreeMap<String, u32> = BTreeMap::new();
+    for m in p.terms.keys() {
+        for (bk, d) in split(m).1 {
+            let e = max.entry(bk).or_insert(0);
+            *e = (*e).max(d);
+        }
+    }
+    let mut out = Poly { has_float: p.has_float, ..Default::default() };
+    for (m, c) in &p.terms {
+        let (rest, by) = split(m);
+        let mut t = Poly { has_float: p.has_float, ..Default::default() };
+        for (k, _) in &rest {
+            t.atoms.insert(k.clone(), p.atoms[k].clone());
+        }
+        t.terms.insert(rest, c.clone());
+        for (bk, top) in &max {
+            let bp = &bases[bk].1;
+            for _ in 0..top - by.get(bk).copied().unwrap_or(0) {
+                t = t.mul(bp)?;
+            }
+        }
+        out = out.add(t);
+    }
+    Some((out, bases.into_values().map(|(b, _)| b).collect()))
+}
+
 /// Solve a single equation `lhs = rhs` the way upstream's sympy.solve call is
 /// used: only multi-symbol linear equations yield dict solutions {sym: value}.
 pub fn solve_linear_dict(lhs: &Expr, rhs: &Expr) -> Option<Vec<(String, Expr)>> {
