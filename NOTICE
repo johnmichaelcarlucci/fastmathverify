@@ -1,0 +1,20 @@
+fastmathverify
+Copyright 2026 fastmathverify contributors. Licensed under the Apache License 2.0.
+
+This project reimplements the behaviour of:
+
+  Math-Verify (https://github.com/huggingface/Math-Verify)
+  Copyright The HuggingFace Team. Apache License 2.0.
+  The answer-extraction regular expressions and comparison rules are ported from it.
+
+  latex2sympy2_extended (https://github.com/huggingface/latex2sympy2_extended)
+  Copyright 2016 latex2sympy and The HuggingFace Team. MIT License
+  (see grammar/LICENSE-latex2sympy2_extended.txt).
+  grammar/PS.g4 and the parser generated from it (src/gen/) derive from its grammar;
+  src/normalize.rs and src/convert.rs port its normalization and conversion logic.
+
+Vendored dependency:
+
+  antlr4rust 0.6.0 (https://github.com/antlr4rust/antlr4), BSD 3-Clause License
+  (vendor/antlr4rust/LICENSE.txt). Modified: `prediction_mode` is made public in
+  vendor/antlr4rust/src/lib.rs so the parser can use SLL prediction.
