@@ -63,10 +63,12 @@ same comparison rules) and replaces the engine.
 ## Install
 
 ```bash
-pip install .            # from a checkout; needs a Rust toolchain (rustup.rs)
+pip install git+https://github.com/johnmichaelcarlucci/fastmathverify
+# or, from a checkout:
+pip install .
 ```
 
-Python >= 3.10. Built with [maturin](https://www.maturin.rs/) as an abi3 wheel. SymPy is
+Building needs a Rust toolchain ([rustup.rs](https://rustup.rs)). Python >= 3.10. Built with [maturin](https://www.maturin.rs/) as an abi3 wheel. SymPy is
 optional and only used for `Expr.to_sympy()` interop.
 
 ## Benchmarks
