@@ -8,3 +8,5 @@
 !/data/.gitkeep
 __pycache__/
 *.so
+/data/*.parquet
+/grammar/gen/
