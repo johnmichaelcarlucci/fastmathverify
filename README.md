@@ -19,7 +19,7 @@ mv.verify_batch(gold_texts, completions)   # -> list[bool]
 
 ## Features
 
-- Answer extraction from `oxed{}`, `$...$`, "the answer is" and plain expressions.
+- Answer extraction from `\boxed{}`, `$...$`, "the answer is" and plain expressions.
 - LaTeX parsing: fractions, roots, powers, trig and log functions, sets, intervals, tuples, matrices, equations.
 - Equivalence checking: exact rational arithmetic, numeric identity tests, set and interval comparison, equation solving.
 - Timeouts that work in any thread; no signals, no subprocesses.
