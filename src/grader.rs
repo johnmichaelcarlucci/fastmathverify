@@ -121,6 +121,9 @@ pub fn semantic_eq(a: &Expr, b: &Expr) -> bool {
     }
     let mut ok = 0;
     for t in 0..6 {
+        if crate::deadline::expired() {
+            return false;
+        }
         let mut env = Env::new();
         for (i, s) in syms.iter().enumerate() {
             let k = (t + 2 * i) % 6;
@@ -271,8 +274,10 @@ fn numeric_eq(a: &Expr, b: &Expr, opts: &VerifyOpts) -> bool {
     }
     match (numeric(a, &Env::new()), numeric(b, &Env::new())) {
         (Some(x), Some(y)) => {
-            let tol = 10f64.powi(-(opts.numeric_precision as i32 - 3)).max(1e-13);
-            (x - y).norm() <= tol * 1f64.max(x.norm()).max(y.norm())
+            // (a - b).evalf(chop=True) == 0: zero only up to working precision, relative
+            let tol = 10f64.powi(-(opts.numeric_precision as i32 - 2)).max(1e-13);
+            let d = (x - y).norm();
+            d <= tol * x.norm().max(y.norm()) || d <= 1e-300
         }
         _ => false,
     }
@@ -564,18 +569,16 @@ fn compare_relational(gold: &Expr, pred: &Expr, o: &VerifyOpts) -> R {
                     return Ok(true);
                 }
                 use crate::solve::Sol;
-                let mut all = true;
-                for (g, p) in gs.iter().zip(&ps) {
-                    match (g, p) {
-                        (Sol::Dict(gk, gv), Sol::Dict(pk, pv)) => {
-                            if gk != pk || !matches!(expr_eq(gv, pv, o, false, true), Ok(true)) {
-                                all = false;
-                            }
-                        }
-                        _ => return Ok(false),
+                let pair_ok = |g: &Sol, p: &Sol| match (g, p) {
+                    (Sol::Dict(gk, gv), Sol::Dict(pk, pv)) => {
+                        gk == pk && matches!(expr_eq(gv, pv, o, false, true), Ok(true))
                     }
-                }
-                return Ok(all);
+                    _ => false,
+                };
+                // sympy orders both solution lists canonically; try both pairings for two roots.
+                let straight = gs.iter().zip(&ps).all(|(g, p)| pair_ok(g, p));
+                let swapped = gs.len() == 2 && pair_ok(&gs[0], &ps[1]) && pair_ok(&gs[1], &ps[0]);
+                return Ok(straight || swapped);
             }
             _ => return Ok(false),
         }
@@ -662,7 +665,18 @@ pub fn compare_items(g: &Item, t: &Item, o: &VerifyOpts) -> bool {
 }
 
 pub fn verify(gold: &[Item], target: &[Item], o: &VerifyOpts) -> bool {
-    gold.iter().any(|g| target.iter().any(|t| compare_items(g, t, o)))
+    verify_with_timeout(gold, target, o, Some(5.0))
+}
+
+/// Upstream semantics: each (gold, target) comparison gets its own timeout and
+/// counts as False when it expires.
+pub fn verify_with_timeout(gold: &[Item], target: &[Item], o: &VerifyOpts, timeout: Option<f64>) -> bool {
+    gold.iter().any(|g| {
+        target.iter().any(|t| {
+            let (r, hit) = crate::deadline::run(timeout, || compare_items(g, t, o));
+            r && !hit
+        })
+    })
 }
 
 #[allow(dead_code)]

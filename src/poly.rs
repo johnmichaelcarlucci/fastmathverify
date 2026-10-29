@@ -262,6 +262,11 @@ fn _s(r: &Rat) -> bool {
 /// Coefficients (as symbol-free expressions) of `p` viewed as a polynomial in
 /// the atom `var`; index i holds the coefficient of var^i.
 pub fn coeffs_in(p: &Poly, var: &str) -> Option<Vec<Expr>> {
+    coeffs_in_ex(p, var, false)
+}
+
+/// Like `coeffs_in`, optionally allowing other free symbols in the coefficients.
+pub fn coeffs_in_ex(p: &Poly, var: &str, allow_symbols: bool) -> Option<Vec<Expr>> {
     let deg = p.degree_in(var) as usize;
     let mut groups: Vec<Vec<Expr>> = vec![Vec::new(); deg + 1];
     for (m, c) in &p.terms {
@@ -276,7 +281,10 @@ pub fn coeffs_in(p: &Poly, var: &str) -> Option<Vec<Expr>> {
                 k = *e as usize;
             } else {
                 let at = p.atoms.get(a)?.clone();
-                if at.has_free_symbols() {
+                if !allow_symbols && at.has_free_symbols() {
+                    return None;
+                }
+                if at.free_symbols().iter().any(|s| s == var) {
                     return None;
                 }
                 factors.push(if *e == 1 { at } else { pow(at, int(*e as i64)) });

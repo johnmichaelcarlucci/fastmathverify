@@ -56,6 +56,9 @@ pub fn exact(e: &Expr) -> Option<Rat> {
             let mut acc = if *product { Rat::one() } else { Rat::zero() };
             let mut i = lo;
             while i <= hi {
+                if (i & 255) == 0 && crate::deadline::expired() {
+                    return None;
+                }
                 let t = exact(&f.subs_sym(v, &int(i)))?;
                 if *product { acc *= t } else { acc += t }
                 if !big_ok(&acc) {
@@ -249,6 +252,9 @@ pub fn numeric(e: &Expr, env: &Env) -> Option<C> {
             let mut acc = if *product { ci(1.0) } else { ci(0.0) };
             let mut env2 = env.clone();
             for i in lo..=hi {
+                if (i & 255) == 0 && crate::deadline::expired() {
+                    return None;
+                }
                 env2.insert(v.clone(), ci(i as f64));
                 let t = numeric(f, &env2)?;
                 if *product { acc *= t } else { acc += t }

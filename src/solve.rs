@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use crate::eval::compare_real;
 use crate::expr::*;
 use crate::order::real_value;
-use crate::poly::{coeffs_in, solve_linear_dict, to_poly};
+use crate::poly::{coeffs_in, coeffs_in_ex, to_poly};
 use crate::realset::{to_realset, RealSet};
 use crate::sets::make_interval;
 use crate::symbols::is_real_symbol;
@@ -53,8 +53,31 @@ pub fn solve_eq(l: &Expr, r: &Expr) -> Option<Vec<Sol>> {
             Some((0..n).map(|_| Sol::Val).collect())
         }
         _ => {
-            let sol = solve_linear_dict(l, r)?;
-            Some(sol.into_iter().map(|(k, v)| Sol::Dict(k, v)).collect())
+            // sympy solves for the first symbol (sorted) it can isolate.
+            let p = to_poly(&d)?;
+            for s in &syms {
+                let Some(c) = coeffs_in_ex(&p, s, true) else { continue };
+                let zero = |e: &Expr| crate::poly::to_poly(e).map(|q| q.is_zero()).unwrap_or(false);
+                match c.len() {
+                    2 if !zero(&c[1]) => {
+                        let v = Expr::Mul(vec![int(-1), c[0].clone(), inv(c[1].clone())]);
+                        return Some(vec![Sol::Dict(s.clone(), v)]);
+                    }
+                    3 if !zero(&c[2]) => {
+                        let (a, b, cc) = (&c[2], &c[1], &c[0]);
+                        let disc = Expr::Add(vec![pow(b.clone(), int(2)), Expr::Mul(vec![int(-4), a.clone(), cc.clone()])]);
+                        let mk = |sg: i64| {
+                            Expr::Mul(vec![
+                                Expr::Add(vec![Expr::Mul(vec![int(-1), b.clone()]), Expr::Mul(vec![int(sg), pow(disc.clone(), half())])]),
+                                inv(Expr::Mul(vec![int(2), a.clone()])),
+                            ])
+                        };
+                        return Some(vec![Sol::Dict(s.clone(), mk(-1)), Sol::Dict(s.clone(), mk(1))]);
+                    }
+                    _ => continue,
+                }
+            }
+            None
         }
     }
 }
@@ -166,9 +189,50 @@ fn rel_set(op: RelOp, l: &Expr, r: &Expr, var: &str) -> Option<Expr> {
         };
         return Some(if all { reals() } else { Expr::EmptySet });
     }
-    let p = to_poly(&sub(l, r))?;
+    let d = sub(l, r);
+    if let Some(g) = find_abs_linear(&d, var) {
+        // |g| with g linear in var: split at the root of g.
+        let p = to_poly(&g)?;
+        let c = coeffs_in(&p, var)?;
+        let t = simplify_closed(&Expr::Mul(vec![int(-1), c[0].clone(), inv(c[1].clone())]));
+        let up = real_value(&c[1])? > 0.0;
+        let (dom_pos, dom_neg) = if up {
+            (iv(t.clone(), Expr::Infinity, false, true)?, iv(Expr::NegInfinity, t, true, true)?)
+        } else {
+            (iv(Expr::NegInfinity, t.clone(), true, false)?, iv(t, Expr::Infinity, true, true)?)
+        };
+        let abs = Expr::Func(Func::Abs, vec![g.clone()]);
+        let d_pos = replace(&d, &abs, &g);
+        let d_neg = replace(&d, &abs, &Expr::Mul(vec![int(-1), g.clone()]));
+        let a = to_realset(&rel_set(op, &d_pos, &int(0), var)?)?.intersect(to_realset(&dom_pos)?)?;
+        let b = to_realset(&rel_set(op, &d_neg, &int(0), var)?)?.intersect(to_realset(&dom_neg)?)?;
+        let u = to_realset(&Expr::Union(vec![a.to_expr(), b.to_expr()]))?;
+        return Some(u.to_expr());
+    }
+    let p = to_poly(&d)?;
     let c = coeffs_in(&p, var)?;
     poly_rel_set(&c, op)
+}
+
+fn find_abs_linear(e: &Expr, var: &str) -> Option<Expr> {
+    if let Expr::Func(Func::Abs, args) = e {
+        let g = &args[0];
+        if let Some(p) = to_poly(g) {
+            if let Some(c) = coeffs_in(&p, var) {
+                if c.len() == 2 {
+                    return Some(g.clone());
+                }
+            }
+        }
+    }
+    e.children().into_iter().find_map(|c| find_abs_linear(c, var))
+}
+
+fn replace(e: &Expr, from: &Expr, to: &Expr) -> Expr {
+    if crate::grader::struct_eq(e, from) {
+        return to.clone();
+    }
+    e.map_children(|c| replace(c, from, to))
 }
 
 fn from_realset(rs: RealSet) -> Expr {

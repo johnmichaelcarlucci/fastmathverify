@@ -71,23 +71,43 @@ pub fn value_order(a: &Expr, b: &Expr) -> Ordering {
         (None, None) => {
             let ua = unwrap_assign(a);
             let ub = unwrap_assign(b);
-            class_key(ua).cmp(&class_key(ub)).then_with(|| ua.to_string().cmp(&ub.to_string()))
+            class_key(ua).cmp(&class_key(ub)).then_with(|| match (ua, ub) {
+                // Tuple.evalf() sorts by its (numeric) args lexicographically
+                (Expr::Tuple(x), Expr::Tuple(y)) => {
+                    for (p, q) in x.iter().zip(y) {
+                        let o = value_order(p, q);
+                        if o != Ordering::Equal {
+                            return o;
+                        }
+                    }
+                    x.len().cmp(&y.len())
+                }
+                _ => ua.to_string().cmp(&ub.to_string()),
+            })
         }
     }
 }
 
+/// grader.unwrap_eq: assignment relation (incl. And chains) -> last rhs.
 fn unwrap_assign(e: &Expr) -> &Expr {
     match e {
         Expr::Rel(RelOp::Eq, l, r) if crate::convert::is_expr_of_only_symbols(l) => r,
+        Expr::And(v)
+            if !v.is_empty()
+                && v.iter().all(|x| matches!(x, Expr::Rel(RelOp::Eq, ..)))
+                && matches!(&v[0], Expr::Rel(_, l, _) if crate::convert::is_expr_of_only_symbols(l)) =>
+        {
+            match v.last() {
+                Some(Expr::Rel(_, _, r)) => r,
+                _ => e,
+            }
+        }
         _ => e,
     }
 }
 
 fn key(e: &Expr) -> Option<f64> {
-    let e = match e {
-        Expr::Rel(RelOp::Eq, l, r) if crate::convert::is_expr_of_only_symbols(l) => &**r,
-        _ => e,
-    };
+    let e = unwrap_assign(e);
     if let Some(r) = exact_or_float_rat(e) {
         return Some(rat_to_f64(&r));
     }

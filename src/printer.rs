@@ -291,3 +291,83 @@ fn p(e: &Expr) -> String {
 fn _u(b: &BigInt) -> Option<i64> {
     b.to_i64()
 }
+
+/// SymPy `srepr`-style constructor string (evaluate=False where SymPy would
+/// otherwise rewrite), used to rebuild the expression as a SymPy object.
+pub fn srepr(e: &Expr) -> String {
+    let l = |v: &[Expr]| v.iter().map(srepr).collect::<Vec<_>>().join(", ");
+    match e {
+        Expr::Num(Num::Int(i)) => format!("Integer({i})"),
+        Expr::Num(Num::Rat(r)) => format!("Rational({}, {})", r.numer(), r.denom()),
+        Expr::Num(Num::Float { exact, .. }) => format!("Float('{}')", float_str(exact)),
+        Expr::Sym(s) => {
+            let real = crate::symbols::is_real_symbol(s);
+            format!("Symbol({:?}, real={})", display_name(s), if real { "True" } else { "False" })
+        }
+        Expr::Pi => "pi".into(),
+        Expr::E => "E".into(),
+        Expr::I => "I".into(),
+        Expr::EulerGamma => "EulerGamma".into(),
+        Expr::Infinity => "oo".into(),
+        Expr::NegInfinity => "-oo".into(),
+        Expr::ComplexInfinity => "zoo".into(),
+        Expr::NaN => "nan".into(),
+        Expr::Add(v) => format!("Add({}, evaluate=False)", l(v)),
+        Expr::Mul(v) => format!("Mul({}, evaluate=False)", l(v)),
+        Expr::Pow(b, x) => format!("Pow({}, {}, evaluate=False)", srepr(b), srepr(x)),
+        Expr::Func(f, args) => match f {
+            Func::Undefined(n) => format!("Function({n:?})({})", l(args)),
+            Func::Binomial | Func::Gamma | Func::Gcd | Func::Lcm => format!("{}({})", f.name(), l(args)),
+            Func::Max | Func::Min => format!("{}({}, evaluate=False)", f.name(), l(args)),
+            _ => format!("{}({}, evaluate=False)", f.name(), l(args)),
+        },
+        Expr::Uneval(x) => format!("UnevaluatedExpr({})", srepr(x)),
+        Expr::Rel(op, a, b) => {
+            let n = match op {
+                RelOp::Eq => "Eq",
+                RelOp::Ne => "Ne",
+                RelOp::Lt => "StrictLessThan",
+                RelOp::Le => "LessThan",
+                RelOp::Gt => "StrictGreaterThan",
+                RelOp::Ge => "GreaterThan",
+            };
+            format!("{n}({}, {}, evaluate=False)", srepr(a), srepr(b))
+        }
+        Expr::And(v) => format!("And({})", l(v)),
+        Expr::Not(x) => format!("Not({})", srepr(x)),
+        Expr::FiniteSet { args, .. } => format!("FiniteSet({})", l(args)),
+        Expr::Tuple(v) => format!("Tuple({})", l(v)),
+        Expr::Interval { start, end, lopen, ropen } => format!(
+            "Interval({}, {}, {}, {})",
+            srepr(start),
+            srepr(end),
+            if *lopen { "True" } else { "False" },
+            if *ropen { "True" } else { "False" }
+        ),
+        Expr::Union(v) => format!("Union({}, evaluate=False)", l(v)),
+        Expr::Intersection(v) => format!("Intersection({}, evaluate=False)", l(v)),
+        Expr::Complement(a, b) => format!("Complement({}, {}, evaluate=False)", srepr(a), srepr(b)),
+        Expr::SetConst(c) => format!("S.{c:?}"),
+        Expr::EmptySet => "S.EmptySet".into(),
+        Expr::Matrix { rows, cols, data } => {
+            let rs: Vec<String> = (0..*rows).map(|i| format!("[{}]", l(&data[i * cols..(i + 1) * cols]))).collect();
+            format!("Matrix([{}])", rs.join(", "))
+        }
+        Expr::Derivative(f, v) => format!("Derivative({}, {})", srepr(f), srepr(v)),
+        Expr::Integral { f, var, bounds } => match bounds {
+            Some((a, b)) => format!("Integral({}, ({}, {}, {}))", srepr(f), srepr(var), srepr(a), srepr(b)),
+            None => format!("Integral({}, {})", srepr(f), srepr(var)),
+        },
+        Expr::Sum { f, var, lo, hi, product } => format!(
+            "{}({}, ({}, {}, {}))",
+            if *product { "Product" } else { "Sum" },
+            srepr(f),
+            srepr(var),
+            srepr(lo),
+            srepr(hi)
+        ),
+        Expr::Limit { f, var, to, dir_plus } => {
+            format!("Limit({}, {}, {}, '{}')", srepr(f), srepr(var), srepr(to), if *dir_plus { "+" } else { "-" })
+        }
+    }
+}

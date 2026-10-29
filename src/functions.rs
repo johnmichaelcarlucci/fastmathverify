@@ -17,6 +17,21 @@ pub fn binomial(n: Expr, k: Expr) -> Expr {
             if nr.is_integer() && !nr.is_negative() && Rat::from_integer(kk.clone()) > nr {
                 return int(0);
             }
+            if nr.is_integer() && !nr.is_negative() {
+                // exact integer recurrence; acc*(n-i) is always divisible by (i+1)
+                let n_int = nr.to_integer();
+                let k2 = (&n_int - kk).min(kk.clone()).to_u64().unwrap_or(kv);
+                if k2 <= 200_000 {
+                    let mut acc = BigInt::one();
+                    for i in 0..k2 {
+                        if (i & 255) == 0 && crate::deadline::expired() {
+                            return Expr::Func(Func::Binomial, vec![n, k]);
+                        }
+                        acc = acc * (&n_int - BigInt::from(i)) / BigInt::from(i + 1);
+                    }
+                    return Expr::Num(Num::Int(acc));
+                }
+            }
             if kv <= 100_000 {
                 let mut acc = Rat::one();
                 for i in 0..kv {

@@ -480,7 +480,7 @@ pub fn div(a: Expr, b: Expr) -> Expr {
 pub fn finite_set(unsorted: Vec<Expr>) -> Expr {
     let mut args: Vec<Expr> = Vec::new();
     for a in &unsorted {
-        if !args.iter().any(|b| b == a) {
+        if !args.iter().any(|b| crate::grader::struct_eq(b, a)) {
             args.push(a.clone());
         }
     }

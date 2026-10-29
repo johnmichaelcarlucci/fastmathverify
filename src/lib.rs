@@ -1,4 +1,5 @@
 pub mod convert;
+pub mod deadline;
 pub mod diff;
 pub mod eval;
 pub mod expr;
@@ -32,3 +33,6 @@ pub fn item_str(i: &Item) -> String {
         Item::Str(s) => s.clone(),
     }
 }
+
+#[cfg(feature = "python")]
+pub mod python;

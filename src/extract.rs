@@ -465,6 +465,9 @@ pub fn get_last_eq(latex: &str) -> String {
 }
 
 pub fn parse_latex(latex: &str) -> Result<Expr, String> {
+    if crate::deadline::expired() {
+        return Err("timeout".into());
+    }
     let conv = Converter::new(!should_treat_as_complex(latex));
     match conv.parse(latex) {
         Ok(e) => Ok(e),
@@ -624,6 +627,9 @@ pub fn extract_target_from_pred(
         matches.sort_by(|a, b| (b.2, a.1).cmp(&(a.2, b.1)));
 
         for (c, _, _, r, t) in &matches {
+            if crate::deadline::expired() {
+                return Vec::new();
+            }
             let (item, fb) = match t {
                 Target::Latex(cfg) => extract_latex(r, c, cfg),
                 Target::Expr(_) => extract_expr(r, c),
@@ -659,4 +665,16 @@ pub fn default_targets() -> Vec<Target> {
 
 pub fn parse(pred: &str, targets: &[Target], fallback: FallbackMode, mode: ExtractionMode) -> Vec<Item> {
     extract_target_from_pred(pred, targets, fallback, mode)
+}
+
+/// `parse` with upstream's `parsing_timeout` semantics: on timeout the result is [].
+pub fn parse_with_timeout(
+    pred: &str,
+    targets: &[Target],
+    fallback: FallbackMode,
+    mode: ExtractionMode,
+    timeout: Option<f64>,
+) -> Vec<Item> {
+    let (items, hit) = crate::deadline::run(timeout, || extract_target_from_pred(pred, targets, fallback, mode));
+    if hit { Vec::new() } else { items }
 }
